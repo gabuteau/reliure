@@ -9,7 +9,6 @@ DB_FILE = "base_reliure_finale.db"
 def initialiser_bdd():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    # Table des livres
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS fiches_livres (
             nom_client TEXT NOT NULL,
@@ -47,7 +46,6 @@ def initialiser_bdd():
             PRIMARY KEY (nom_client, numero_train, numero_livre) ON CONFLICT REPLACE
         )
     """)
-    # Nouvelle Table Fiche Client
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS clients (
             nom TEXT PRIMARY KEY,
@@ -62,7 +60,39 @@ def initialiser_bdd():
     conn.commit()
     conn.close()
 
-# --- FONCTIONS CLIENTS ---
+# --- FONCTION DE CORRESPONDANCE DES FORMATS (BASÉE SUR VOTRE GRILLE) ---
+def determiner_categorie_format(h, l):
+    """Détermine la colonne tarifaire en fonction des dimensions (hauteur, largeur) en mm."""
+    if h <= 185 and l <= 115: return "In 12"
+    elif h <= 200 and l <= 130: return "In 8° écu"
+    elif h <= 245 and l <= 160: return "In 8° raisin"
+    elif h <= 270 and l <= 175: return "In 8° jésus"
+    elif h <= 320 and l <= 245: return "In 4° raisin"
+    elif h <= 350 and l <= 270: return "In 4° jésus"
+    elif h <= 440 and l <= 280: return "Folio carré"
+    elif h <= 490 and l <= 320: return "Folio raisin"
+    elif h <= 540 and l <= 350: return "Folio jésus"
+    elif h <= 600 and l <= 440: return "Grand folio"
+    elif h <= 700: return "Plano A"
+    else: return "Plano B"
+
+# --- TABLE DES TARIFS DES SUPPLÉMENTS (EXTRAITE DE VOTRE PHOTO) ---
+TARIFS_SUPPLEMENTS = {
+    "Pièce de titre": {"In 12": 5.05, "In 8° écu": 6.56, "In 8° raisin": 7.57, "In 8° jésus": 9.08, "In 4° raisin": 11.61, "In 4° jésus": 14.13, "Folio carré": 15.84, "Folio raisin": 17.76, "Folio jésus": 19.17, "Grand folio": 21.19, "Plano A": 22.96, "Plano B": 25.23},
+    "Sous titre": {"In 12": 7.01, "In 8° écu": 9.11, "In 8° raisin": 10.51, "In 8° jésus": 12.62, "In 4° raisin": 16.12, "In 4° jésus": 19.63, "Folio carré": 22.01, "Folio raisin": 24.67, "Folio jésus": 26.63, "Grand folio": 29.44, "Plano A": 31.89, "Plano B": 35.05},
+    "Titrage main": {"In 12": 9.83, "In 8° écu": 12.78, "In 8° raisin": 14.75, "In 8° jésus": 17.70, "In 4° raisin": 22.61, "In 4° jésus": 27.53, "Folio carré": 30.87, "Folio raisin": 34.61, "Folio jésus": 37.36, "Grand folio": 41.29, "Plano A": 44.73, "Plano B": 49.16},
+    "Titre caractère latin": {"In 12": 9.83, "In 8° écu": 12.78, "In 8° raisin": 14.75, "In 8° jésus": 17.70, "In 4° raisin": 22.61, "In 4° jésus": 27.53, "Folio carré": 30.87, "Folio raisin": 34.61, "Folio jésus": 37.36, "Grand folio": 41.29, "Plano A": 44.73, "Plano B": 49.16},
+    "Plats conservés": {"In 12": 12.52, "In 8° écu": 16.27, "In 8° raisin": 18.77, "In 8° jésus": 22.53, "In 4° raisin": 28.78, "In 4° jésus": 35.04, "Folio carré": 39.30, "Folio raisin": 44.05, "Folio jésus": 47.56, "Grand folio": 52.56, "Plano A": 56.94, "Plano B": 62.58},
+    "Onglets": {"In 12": 0.92, "In 8° écu": 1.20, "In 8° raisin": 1.38, "In 8° jésus": 1.66, "In 4° raisin": 2.12, "In 4° jésus": 2.58, "Folio carré": 2.89, "Folio raisin": 3.24, "Folio jésus": 3.50, "Grand folio": 3.86, "Plano A": 4.19, "Plano B": 4.60},
+    "Charnières toile": {"In 12": 1.66, "In 8° écu": 2.15, "In 8° raisin": 2.48, "In 8° jésus": 2.98, "In 4° raisin": 3.81, "In 4° jésus": 4.64, "Folio carré": 5.20, "Folio raisin": 5.83, "Folio jésus": 6.29, "Grand folio": 6.96, "Plano A": 7.54, "Plano B": 8.28},
+    "Conservation de gardes": {"In 12": 12.70, "In 8° écu": 16.51, "In 8° raisin": 19.05, "In 8° jésus": 22.86, "In 4° raisin": 29.21, "In 4° jésus": 35.56, "Folio carré": 39.88, "Folio raisin": 44.70, "Folio jésus": 48.26, "Grand folio": 53.34, "Plano A": 57.78, "Plano B": 63.50},
+    "Couture sur nerfs": {"In 12": 18.22, "In 8° écu": 23.69, "In 8° raisin": 27.33, "In 8° jésus": 32.80, "In 4° raisin": 41.91, "In 4° jésus": 51.02, "Folio carré": 57.21, "Folio raisin": 64.14, "Folio jésus": 69.24, "Grand folio": 76.53, "Plano A": 82.90, "Plano B": 91.10},
+    "Pose antivol": {"In 12": 0.43, "In 8° écu": 0.56, "In 8° raisin": 0.64, "In 8° jésus": 0.77, "In 4° raisin": 0.99, "In 4° jésus": 1.21, "Folio carré": 1.35, "Folio raisin": 1.51, "Folio jésus": 1.63, "Grand folio": 1.80, "Plano A": 1.95, "Plano B": 2.15},
+    "Enlever agrafes": {"In 12": 0.00, "In 8° écu": 0.00, "In 8° raisin": 0.00, "In 8° jésus": 0.00, "In 4° raisin": 0.00, "In 4° jésus": 0.00, "Folio carré": 3.85, "Folio raisin": 4.32, "Folio jésus": 4.66, "Grand folio": 5.15, "Plano A": 5.58, "Plano B": 6.13},
+    "Couture manuelle sur rubans": {"In 12": 0.00, "In 8° écu": 0.00, "In 8° raisin": 1.84, "In 8° jésus": 2.21, "In 4° raisin": 2.82, "In 4° jésus": 3.44, "Folio carré": 3.85, "Folio raisin": 4.32, "Folio jésus": 4.66, "Grand folio": 5.15, "Plano A": 5.58, "Plano B": 6.13}
+}
+
+# --- FONCTIONS CRUD CLIENTS ---
 def lister_tous_les_clients():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -87,11 +117,8 @@ def enregistrer_client(nom, adresse, telephone, email, contact, notes):
         INSERT INTO clients (nom, adresse, telephone, email, contact_nom, notes)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(nom) DO UPDATE SET
-            adresse=excluded.adresse,
-            telephone=excluded.telephone,
-            email=excluded.email,
-            contact_nom=excluded.contact_nom,
-            notes=excluded.notes
+            adresse=excluded.adresse, telephone=excluded.telephone,
+            email=excluded.email, contact_nom=excluded.contact_nom, notes=excluded.notes
     """, (nom, adresse, telephone, email, contact, notes))
     conn.commit()
     conn.close()
@@ -114,10 +141,8 @@ def lister_les_trains_du_client(client):
     return trains
 
 def generer_automatiquement_numero_train(client):
-    """Génère un numéro de train type T2026001 basé sur le max existant pour l'année en cours."""
     annee_courante = datetime.now().year
     prefixe_recherche = f"T{annee_courante}%"
-    
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
@@ -129,14 +154,11 @@ def generer_automatiquement_numero_train(client):
     conn.close()
     
     if dernier_train:
-        str_num = dernier_train[0][5:]  # Extrait les 3 derniers digits
-        try:
-            prochain_ordre = int(str_num) + 1
-        except ValueError:
-            prochain_ordre = 1
+        str_num = dernier_train[0][5:]
+        try: prochain_ordre = int(str_num) + 1
+        except ValueError: prochain_ordre = 1
     else:
         prochain_ordre = 1
-        
     return f"T{annee_courante}{prochain_ordre:03d}"
 
 def determiner_prochain_numero_livre(client, train):
@@ -186,8 +208,7 @@ def ajouter_couleur_bdd(nouvelle_couleur):
     try:
         cursor.execute("INSERT INTO couleurs_toile (nom_couleur) VALUES (?)", (nouvelle_couleur,))
         conn.commit()
-    except sqlite3.IntegrityError:
-        pass
+    except sqlite3.IntegrityError: pass
     conn.close()
 
 def charger_couleurs():
@@ -201,19 +222,15 @@ def charger_couleurs():
 
 initialiser_bdd()
 
-# --- CONFIGURATION INTERFACE ---
+# --- INTERFACE DE SAISIE ---
 st.set_page_config(page_title="Gestion Atelier Reliure", layout="wide")
-
 tabs = st.tabs(["📚 Saisie & Suivi des Livres", "🏢 Fiches Clients"])
 liste_couleurs = charger_couleurs()
 liste_clients_existants = lister_tous_les_clients()
 
-# ==========================================
-# TAB 2 : GESTION DES FICHES CLIENTS
-# ==========================================
+# --- TAB 2 : GESTION DES FICHES CLIENTS ---
 with tabs[1]:
     st.header("🏢 Gestion de l'Annuaire des Clients")
-    
     action_client = st.radio("Action :", ["Sélectionner / Modifier un client", "➕ Créer un nouveau client"], horizontal=True)
     st.write("---")
     
@@ -225,117 +242,81 @@ with tabs[1]:
             c_tel, c_mel = st.columns(2)
             with c_tel: nc_tel = st.text_input("Téléphone")
             with c_mel: nc_mail = st.text_input("Adresse E-mail")
-            nc_notes = st.text_area("Notes d'atelier spécifiques (Ex: habillage habituel...)")
-            
+            nc_notes = st.text_area("Notes d'atelier spécifiques")
             bouton_creer = st.form_submit_button("💾 Enregistrer le nouveau client")
-            if bouton_creer:
-                if not nc_nom:
-                    st.error("Le nom du client est obligatoire.")
-                else:
-                    enregistrer_client(nc_nom, nc_adresse, nc_tel, nc_mail, nc_contact, nc_notes)
-                    st.success(f"Client '{nc_nom}' ajouté avec succès.")
-                    st.rerun()
-                    
+            if bouton_creer and nc_nom:
+                enregistrer_client(nc_nom, nc_adresse, nc_tel, nc_mail, nc_contact, nc_notes)
+                st.success(f"Client '{nc_nom}' ajouté.")
+                st.rerun()
     else:
-        if not liste_clients_existants:
-            st.info("Aucun client enregistré pour le moment.")
-        else:
+        if liste_clients_existants:
             client_sel = st.selectbox("Choisir le client à gérer :", options=liste_clients_existants)
             fiche = recuperer_fiche_client(client_sel)
-            
             if fiche:
                 with st.form("form_modif_client"):
-                    st.markdown(f"### Édition de la fiche : **{fiche['nom']}**")
                     mod_contact = st.text_input("Nom du contact référent", value=fiche["contact_nom"])
                     mod_adresse = st.text_area("Adresse complète", value=fiche["adresse"])
                     c_tel2, c_mel2 = st.columns(2)
                     with c_tel2: mod_tel = st.text_input("Téléphone", value=fiche["telephone"])
                     with c_mel2: mod_mail = st.text_input("Adresse E-mail", value=fiche["email"])
-                    mod_notes = st.text_area("Notes d'atelier spécifiques", value=fiche["notes"])
-                    
-                    bouton_modif = st.form_submit_button("💾 Sauvegarder les modifications")
-                    if bouton_modif:
+                    mod_notes = st.text_area("Notes d'atelier", value=fiche["notes"])
+                    if st.form_submit_button("💾 Sauvegarder les modifications"):
                         enregistrer_client(fiche["nom"], mod_adresse, mod_tel, mod_mail, mod_contact, mod_notes)
                         st.success("Fiche client mise à jour.")
                         st.rerun()
-                        
-                st.write("---")
-                with st.expander("🚨 Zone de danger — Supprimer le client"):
-                    st.warning(f"La suppression de **{fiche['nom']}** détruira définitivement sa fiche ainsi que tous ses livres et trains associés.")
-                    confirme_suppr = st.checkbox(f"Je confirme vouloir supprimer définitivement {fiche['nom']}")
-                    if st.button("❌ Supprimer définitivement"):
-                        if confirme_suppr:
-                            supprimer_client_bdd(fiche["nom"])
-                            st.success("Client effacé.")
-                            st.rerun()
-                        else:
-                            st.error("Veuillez cocher la case de confirmation.")
+                with st.expander("🚨 Zone de danger"):
+                    confirme_suppr = st.checkbox(f"Confirmer la suppression de {fiche['nom']}")
+                    if st.button("❌ Supprimer définitivement") and confirme_suppr:
+                        supprimer_client_bdd(fiche["nom"])
+                        st.rerun()
 
-# ==========================================
-# TAB 1 : SAISIE & SUIVI DES LIVRES
-# ==========================================
+# --- TAB 1 : SAISIE & SUIVI DES LIVRES ---
 with tabs[0]:
     st.title("📚 Saisie de Fiche — Devis + Traitements")
-    
     if not liste_clients_existants:
-        st.warning("⚠️ Veuillez d'abord créer un client dans l'onglet 'Fiches Clients' pour commencer la saisie.")
+        st.warning("⚠️ Créez d'abord un client dans l'onglet 'Fiches Clients'.")
     else:
         col_saisie, col_visualisation = st.columns([1.2, 0.8])
-        
         with col_saisie:
             st.header("📋 Saisie de la fiche")
             st.subheader("1. Clés d'enregistrement")
-            
-            # Sélection Client simplifiée
             nom_client_valide = st.selectbox("Client", options=liste_clients_existants, key="livre_client_selectbox")
             liste_trains_existants = lister_les_trains_du_client(nom_client_valide)
             
-            # Choix ou génération du Train
             c_tr1, c_tr2 = st.columns([1.2, 0.8])
             with c_tr1:
                 options_train = ["-- Nouveau train automatique --"] + liste_trains_existants
                 train_selectionne = st.selectbox("Sélectionner le train", options=options_train)
-            
-            if train_selectionne == "-- Nouveau train automatique --":
-                numero_train = generer_automatiquement_numero_train(nom_client_valide)
-                with c_tr2:
-                    st.info(f"⚙️ Prochain numéro : **{numero_train}**")
-            else:
-                numero_train = train_selectionne
-                with c_tr2:
-                    st.success(f"📂 Train actif : **{numero_train}**")
+            numero_train = generer_automatiquement_numero_train(nom_client_valide) if train_selectionne == "-- Nouveau train automatique --" else train_selectionne
+            with c_tr2: st.info(f"📂 Train : **{numero_train}**")
 
-            # Gestion du numéro de livre
             num_livre_en_cours = 1
             donnees_edition = None
-
             if "livre_selectionne" in st.session_state and nom_client_valide and numero_train:
                 num_livre_en_cours = st.session_state.livre_selectionne
                 donnees_edition = recuperer_livre_specifique(nom_client_valide, numero_train, num_livre_en_cours)
-                st.warning(f"🔄 Mode Modification : Vous éditez actuellement le Livre N° {num_livre_en_cours}")
-                if st.button("❌ Annuler la modification (Revenir au livre suivant)"):
+                st.warning(f"🔄 Modification du Livre N° {num_livre_en_cours}")
+                if st.button("❌ Annuler la modification"):
                     del st.session_state.livre_selectionne
                     st.rerun()
             elif nom_client_valide and numero_train:
                 num_livre_en_cours = determiner_prochain_numero_livre(nom_client_valide, numero_train)
-                st.info(f"✨ Nouveau Livre : Numéro attribué automatiquement : **{num_livre_en_cours}**")
+                st.info(f"✨ Livre suivant automatique : **{num_livre_en_cours}**")
 
             # --- FORMULAIRE ---
             st.write("---")
             st.subheader("2. Nature et Finition du document")
-            
             idx_nature = 0 if donnees_edition and donnees_edition["nature_doc"] == "Monographie (Mono)" else (1 if donnees_edition and donnees_edition["nature_doc"] == "Périodique (Pério)" else 0)
-            nature_doc = st.radio("**Sélectionnez la nature du document :**", ["Monographie (Mono)", "Périodique (Pério)"], horizontal=True, index=idx_nature)
-            
+            nature_doc = st.radio("**Nature :**", ["Monographie (Mono)", "Périodique (Pério)"], horizontal=True, index=idx_nature)
             idx_etat = 0 if donnees_edition and donnees_edition["text_doc"] == "Neuf" else (1 if donnees_edition and donnees_edition["text_doc"] == "Usagé" else 0)
-            text_doc = st.radio("**Sélectionnez l'état :**", ["Neuf", "Usagé"], horizontal=True, index=idx_etat)
+            text_doc = st.radio("**État :**", ["Neuf", "Usagé"], horizontal=True, index=idx_etat)
 
             val_autre = True if donnees_edition and donnees_edition["option_autre"] != "N/A" else False
             cocher_autre = st.checkbox("Autre (Matières spécifiques)", value=val_autre)
             option_autre = "N/A"
             if cocher_autre:
                 idx_opt = ["Cuir", "1/2 cuir", "1/2 toile"].index(donnees_edition["option_autre"]) if donnees_edition and donnees_edition["option_autre"] in ["Cuir", "1/2 cuir", "1/2 toile"] else 0
-                option_autre = st.radio("Finition spécifique :", ["Cuir", "1/2 cuir", "1/2 toile"], horizontal=True, index=idx_opt)
+                option_autre = st.radio("Finition :", ["Cuir", "1/2 cuir", "1/2 toile"], horizontal=True, index=idx_opt)
 
             st.markdown("**Reprographie :**")
             val_scanne = bool(donnees_edition["repro_scanne"]) if donnees_edition else False
@@ -344,7 +325,7 @@ with tabs[0]:
             with col_scanne: repro_scanne = st.checkbox("Scannée", value=val_scanne)
             with col_report: repro_report = st.checkbox("Report", value=val_report)
 
-            # --- SECTION 3 : DIMENSIONS ---
+            # --- SECTION 3 : DIMENSIONS & DÉTERMINATION DU FORMAT ---
             st.write("---")
             st.subheader("3. Désignation format")
             c_dim1, c_dim2, c_dim3, c_dim4 = st.columns(4)
@@ -353,26 +334,25 @@ with tabs[0]:
             with c_dim3: epaisseur = st.number_input("Épaisseur (mm)", min_value=0, value=int(donnees_edition["epaisseur"]) if donnees_edition else 20, step=1)
             with c_dim4: ne_pas_rogner = st.checkbox("Ne pas rogner", value=bool(donnees_edition["ne_pas_rogner"]) if donnees_edition else False)
 
+            # Calcul en temps réel de la grille tarifaire applicable
+            format_detecte = determiner_categorie_format(hauteur, largeur)
+            st.success(f"📐 **Format détecté pour la tarification** : {format_detecte}")
+
             # --- SECTION 4 : TRAITEMENTS & RELIURE ---
             st.subheader("4. Traitements & Reliure")
             c_trt1, c_trt2, c_trt3 = st.columns(3)
-            
             list_trt = ["T1", "T2", "T3", "T4", "T5", "T6"]
             idx_trt = list_trt.index(donnees_edition["traitement"]) if donnees_edition and donnees_edition["traitement"] in list_trt else 0
-            with c_trt1: traitement = st.selectbox("Traitement de structure", list_trt, index=idx_trt)
-            
+            with c_trt1: traitement = st.selectbox("Traitement", list_trt, index=idx_trt)
             list_rel = ["Bradel", "Emboîtage", "Passure en carton"]
             idx_rel = list_rel.index(donnees_edition["type_reliure"]) if donnees_edition and donnees_edition["type_reliure"] in list_rel else 0
             with c_trt2: type_reliure = st.selectbox("Type de reliure", list_rel, index=idx_rel)
-            
             list_cou = ["Cahiers machine", "Surjeté", "Cahier manuel"]
             idx_cou = list_cou.index(donnees_edition["type_couture"]) if donnees_edition and donnees_edition["type_couture"] in list_cou else 0
             with c_trt3: type_couture = st.selectbox("Type de couture", list_cou, index=idx_cou)
 
-            agraphes = False
-            nombre_cahiers = 0
+            agraphes = False; nombre_cahiers = 0
             if type_couture == "Cahier manuel":
-                st.markdown("**Options spécifiques au Couture manuelle :**")
                 c_cah1, c_cah2 = st.columns(2)
                 with c_cah1: agraphes = st.checkbox("Présence d'agraphes", value=bool(donnees_edition["agraphes"]) if donnees_edition else False)
                 with c_cah2: nombre_cahiers = st.number_input("Nombre de cahiers", min_value=0, value=int(donnees_edition["nombre_cahiers"]) if donnees_edition else 0, step=1)
@@ -380,83 +360,84 @@ with tabs[0]:
             # --- SECTION 5 : TITRAGE ---
             st.write("---")
             st.subheader("5. Spécifications du titrage")
-            val_sans_titrage = bool(donnees_edition["sans_titrage"]) if donnees_edition else False
-            sans_titrage = st.checkbox("**Pas de titrage (Masquer la saisie)**", value=val_sans_titrage)
-
+            sans_titrage = st.checkbox("**Pas de titrage**", value=bool(donnees_edition["sans_titrage"]) if donnees_edition else False)
             titrage_sens = "N/A"; lignes_sup = 0; titrage_couleur = "N/A"; police = "N/A"
-
             if not sans_titrage:
                 c_tit1, c_tit2, c_tit3, c_tit4 = st.columns(4)
                 idx_sens = 0 if donnees_edition and donnees_edition["titrage_sens"] == "Long" else (1 if donnees_edition and donnees_edition["titrage_sens"] == "Travers" else 0)
-                with c_tit1: titrage_sens = st.radio("Sens du titrage", ["Long", "Travers"], horizontal=True, index=idx_sens)
-                with c_tit2: lignes_sup = st.number_input("Lignes supplémentaires (Nbre)", min_value=0, value=int(donnees_edition["lignes_sup"]) if donnees_edition else 0, step=1)
-                
+                with c_tit1: titrage_sens = st.radio("Sens", ["Long", "Travers"], horizontal=True, index=idx_sens)
+                with c_tit2: lignes_sup = st.number_input("Lignes sup", min_value=0, value=int(donnees_edition["lignes_sup"]) if donnees_edition else 0, step=1)
                 list_marq = ["OR", "ARGENT", "BLANC", "NOIR"]
                 idx_marq = list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0
-                with c_tit3: titrage_couleur = st.selectbox("Couleur du marquage (Caractères)", list_marq, index=idx_marq)
-                
+                with c_tit3: titrage_couleur = st.selectbox("Marquage", list_marq, index=idx_marq)
                 idx_pol = 0 if donnees_edition and donnees_edition["police"] == "Elzévir" else (1 if donnees_edition and donnees_edition["police"] == "Baskerville" else 0)
-                with c_tit4: police = st.radio("Police de caractère", ["Elzévir", "Baskerville"], horizontal=True, index=idx_pol)
+                with c_tit4: police = st.radio("Police", ["Elzévir", "Baskerville"], horizontal=True, index=idx_pol)
 
             # --- SECTION 6 : HABILLAGE ---
             st.write("---")
             st.subheader("6. Habillage")
             c_toi1, c_toi2 = st.columns(2)
-            
             list_toile = ["Buckram", "Fantaisie", "Autre"]
             idx_toile = list_toile.index(donnees_edition["type_toile"]) if donnees_edition and donnees_edition["type_toile"] in list_toile else 0
             with c_toi1: type_toile = st.selectbox("Type de toile", list_toile, index=idx_toile)
-            
             idx_c_toile = liste_couleurs.index(donnees_edition["couleur"]) if donnees_edition and donnees_edition["couleur"] in liste_couleurs else 0
             with c_toi2: couleur = st.selectbox("Couleur de la toile", options=liste_couleurs, index=idx_c_toile)
 
-            with st.expander("➕ Ajouter une nouvelle couleur au catalogue commun"):
-                nouvelle_couleur_saisie = st.text_input("Nom de la couleur").strip()
-                if st.button("Enregistrer la couleur"):
-                    if nouvelle_couleur_saisie:
-                        ajouter_couleur_bdd(nouvelle_couleur_saisie.capitalize())
-                        st.success("Couleur ajoutée au catalogue !")
-                        st.rerun()
-
-            # --- SECTION 7 : OPTION PIÈCE DE TITRE & SUPPLÉMENTS ---
+            # --- SECTION 7 : OPTION PIÈCE DE TITRE & SÉLECTEUR DYNAMIQUE DE SUPPLÉMENTS ---
             st.write("---")
             st.subheader("7. Pièce de titre & Suppléments")
             
             val_c_piece = bool(donnees_edition["cocher_piece_titre"]) if donnees_edition else False
             cocher_piece_titre = st.checkbox("**Activer une pièce de titre**", value=val_c_piece)
-
             couleur_pieces_toile = "N/A"; marquage_pieces = "N/A"
-            supplement_1 = ""; supplement_2 = ""; supplement_3 = ""; supplement_4 = ""
             valeur_maquette_defaut = int(donnees_edition["hauteur_maquette"]) if donnees_edition else (hauteur + 5)
 
             if cocher_piece_titre:
                 c_p1, c_p2, c_p3 = st.columns(3)
                 idx_c_piece = liste_couleurs.index(donnees_edition["couleur_pieces_toile"]) if donnees_edition and donnees_edition["couleur_pieces_toile"] in liste_couleurs else 0
-                with c_p1: couleur_pieces_toile = st.selectbox("Couleur de la pièce de titre", options=liste_couleurs, index=idx_c_piece)
-                
+                with c_p1: couleur_pieces_toile = st.selectbox("Couleur de la pièce", options=liste_couleurs, index=idx_c_piece)
                 list_mp = ["OR", "ARGENT", "BLANC", "NOIR"]
                 idx_mp = list_mp.index(donnees_edition["marquage_pieces"]) if donnees_edition and donnees_edition["marquage_pieces"] in list_mp else 0
-                with c_p2: marquage_pieces = st.selectbox("Couleur du marquage de la pièce", list_mp, index=idx_mp)
-                    
+                with c_p2: marquage_pieces = st.selectbox("Marquage de la pièce", list_mp, index=idx_mp)
                 with c_p3: hauteur_maquette = st.number_input("Hauteur maquette (mm)", min_value=0, value=valeur_maquette_defaut, step=1)
-                    
-                st.markdown("**Zones de saisie libre (Suppléments) :**")
-                cs1, cs2 = st.columns(2)
-                with cs1:
-                    supplement_1 = st.text_input("Supplément 1", value=donnees_edition["supplement_1"] if donnees_edition else "")
-                    supplement_2 = st.text_input("Supplément 2", value=donnees_edition["supplement_2"] if donnees_edition else "")
-                with cs2:
-                    supplement_3 = st.text_input("Supplément 3", value=donnees_edition["supplement_3"] if donnees_edition else "")
-                    supplement_4 = st.text_input("Supplément 4", value=donnees_edition["supplement_4"] if donnees_edition else "")
             else:
                 hauteur_maquette = valeur_maquette_defaut
+
+            # --- SÉLECTION MULTIPLE DES SUPPLÉMENTS DE LA GRILLE ---
+            st.write("")
+            st.markdown("**Sélection des options de suppléments (Grille Tarifaire) :**")
+            
+            # Reconstruction des choix enregistrés précédemment pour l'affichage en mode édition
+            choix_precedents = []
+            if donnees_edition:
+                for col_sup in ["supplement_1", "supplement_2", "supplement_3", "supplement_4"]:
+                    val = donnees_edition[col_sup]
+                    if val and " - " in val:
+                        nom_sup_brut = val.split(" - ")[0]
+                        if nom_sup_brut in TARIFS_SUPPLEMENTS: choix_precedents.append(nom_sup_brut)
+
+            supplements_choisis = st.multiselect(
+                "Cochez les suppléments à appliquer à ce livre (Maximum 4) :",
+                options=list(TARIFS_SUPPLEMENTS.keys()),
+                default=choix_precedents,
+                max_selections=4
+            )
+
+            # Calcul et affichage en direct des montants appliqués
+            supplements_sauvegarde = ["", "", "", ""]
+            if supplements_choisis:
+                st.markdown("##### Détail des montants appliqués :")
+                for i, sup in enumerate(supplements_choisis):
+                    tarif_unitaire = TARIFS_SUPPLEMENTS[sup][format_detecte]
+                    label_complet = f"{sup} - {tarif_unitaire:.2f} €"
+                    supplements_sauvegarde[i] = label_complet
+                    st.info(f"🔹 **{sup}** ({format_detecte}) : **{tarif_unitaire:.2f} €**")
 
             # Bouton de validation
             st.write("---")
             label_bouton = f"💾 Enregistrer les modifications du Livre N° {num_livre_en_cours}" if donnees_edition else f"💾 Valider l'enregistrement [Livre N° {num_livre_en_cours}]"
-            bouton_valider = st.button(label_bouton)
-
-            if bouton_valider:
+            
+            if st.button(label_bouton):
                 donnees_fiche = {
                     "nom_client": nom_client_valide, "numero_train": numero_train, "numero_livre": num_livre_en_cours,
                     "nature_doc": nature_doc, "text_doc": text_doc, "option_autre": option_autre,
@@ -469,44 +450,26 @@ with tabs[0]:
                     "type_toile": type_toile, "couleur": couleur,
                     "cocher_piece_titre": cocher_piece_titre, "couleur_pieces_toile": couleur_pieces_toile, 
                     "marquage_pieces": marquage_pieces, "hauteur_maquette": hauteur_maquette,
-                    "supplement_1": supplement_1, "supplement_2": supplement_2, 
-                    "supplement_3": supplement_3, "supplement_4": supplement_4
+                    "supplement_1": supplements_sauvegarde[0], "supplement_2": supplements_sauvegarde[1], 
+                    "supplement_3": supplements_sauvegarde[2], "supplement_4": supplements_sauvegarde[3]
                 }
                 enregistrer_ou_mettre_a_jour_livre(donnees_fiche)
                 st.success("Données enregistrées avec succès !")
-                if "livre_selectionne" in st.session_state:
-                    del st.session_state.livre_selectionne
+                if "livre_selectionne" in st.session_state: del st.session_state.livre_selectionne
                 st.rerun()
 
-        # --- COLONNE DE DROITE (VISUALISATION & SELECTION) ---
+        # --- COLONNE DE DROITE (VISUALISATION) ---
         with col_visualisation:
             st.header("📊 Suivi en direct du Train")
-            
             if nom_client_valide and numero_train:
                 st.subheader(f"Client : {nom_client_valide} | Train : {numero_train}")
                 livres_train = recuperer_livres_du_train(nom_client_valide, numero_train)
-                
                 if livres_train:
-                    st.markdown("💡 *Cliquez sur une ligne du tableau pour charger et modifier le livre correspondant.*")
-                    df_train = pd.DataFrame(
-                        livres_train, 
-                        columns=["N° Livre", "Nature", "État", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"]
-                    )
-                    
-                    reponse_selection = st.dataframe(
-                        df_train, 
-                        use_container_width=True, 
-                        hide_index=True,
-                        selection_mode="single-row",
-                        on_select="rerun"
-                    )
-                    
+                    df_train = pd.DataFrame(livres_train, columns=["N° Livre", "Nature", "État", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"])
+                    reponse_selection = st.dataframe(df_train, use_container_width=True, hide_index=True, selection_mode="single-row", on_select="rerun")
                     if reponse_selection and "rows" in reponse_selection.get("selection", {}):
                         lignes_selectionnees = reponse_selection["selection"]["rows"]
                         if lignes_selectionnees:
-                            index_ligne = lignes_selectionnees[0]
-                            numero_livre_selectionne = int(df_train.iloc[index_ligne]["N° Livre"])
-                            st.session_state.livre_selectionne = numero_livre_selectionne
+                            st.session_state.livre_selectionne = int(df_train.iloc[lignes_selectionnees[0]]["N° Livre"])
                             st.rerun()
-                else:
-                    st.info("Aucun livre créé pour le moment pour ce Train.")
+                else: st.info("Aucun livre dans ce Train.")

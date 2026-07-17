@@ -4,38 +4,39 @@ import pandas as pd
 from datetime import datetime
 
 # --- INITIALISATION DE LA BASE DE DONNÉES ---
-DB_FILE = "base_reliure_OK.db"
-# Grille standard de référence (extraite de votre photo) - Ordre des clés adapté en Largeur x Hauteur
+DB_FILE = "base_reliure_v2.db"
+
+# Grille standard corrigée : le petit chiffre est la largeur, le grand est la hauteur
 TARIFS_STANDARDS = {
-    "Pièce de titre": {"185 x 115 (In 12)": 5.05, "200 x 130 (In 8° écu)": 6.56, "245 x 160 (In 8° raisin)": 7.57, "270 x 175 (In 8° jésus)": 9.08, "320 x 245 (In 4° raisin)": 11.61, "350 x 270 (In 4° jésus)": 14.13, "440 x 280 (Folio carré)": 15.84, "490 x 320 (Folio raisin)": 17.76, "540 x 350 (Folio jésus)": 19.17, "600 x 440 (Grand folio)": 21.19, "Plano A": 22.96, "Plano B": 25.23},
-    "Sous titre": {"185 x 115 (In 12)": 7.01, "200 x 130 (In 8° écu)": 9.11, "245 x 160 (In 8° raisin)": 10.51, "270 x 175 (In 8° jésus)": 12.62, "320 x 245 (In 4° raisin)": 16.12, "350 x 270 (In 4° jésus)": 19.63, "440 x 280 (Folio carré)": 22.01, "490 x 320 (Folio raisin)": 24.67, "540 x 350 (Folio jésus)": 26.63, "600 x 440 (Grand folio)": 29.44, "Plano A": 31.89, "Plano B": 35.05},
-    "Titrage main": {"185 x 115 (In 12)": 9.83, "200 x 130 (In 8° écu)": 12.78, "245 x 160 (In 8° raisin)": 14.75, "270 x 175 (In 8° jésus)": 17.70, "320 x 245 (In 4° raisin)": 22.61, "350 x 270 (In 4° jésus)": 27.53, "440 x 280 (Folio carré)": 30.87, "490 x 320 (Folio raisin)": 34.61, "540 x 350 (Folio jésus)": 37.36, "600 x 440 (Grand folio)": 41.29, "Plano A": 44.73, "Plano B": 49.16},
-    "Titre caractère latin": {"185 x 115 (In 12)": 9.83, "200 x 130 (In 8° écu)": 12.78, "245 x 160 (In 8° raisin)": 14.75, "270 x 175 (In 8° jésus)": 17.70, "320 x 245 (In 4° raisin)": 22.61, "350 x 270 (In 4° jésus)": 27.53, "440 x 280 (Folio carré)": 30.87, "490 x 320 (Folio raisin)": 34.61, "540 x 350 (Folio jésus)": 37.36, "600 x 440 (Grand folio)": 41.29, "Plano A": 44.73, "Plano B": 49.16},
-    "Titre autre caractère": {"185 x 115 (In 12)": 9.83, "200 x 130 (In 8° écu)": 12.78, "245 x 160 (In 8° raisin)": 14.75, "270 x 175 (In 8° jésus)": 17.70, "320 x 245 (In 4° raisin)": 22.61, "350 x 270 (In 4° jésus)": 27.53, "440 x 280 (Folio carré)": 30.87, "490 x 320 (Folio raisin)": 34.61, "540 x 350 (Folio jésus)": 37.36, "600 x 440 (Grand folio)": 41.29, "Plano A": 44.73, "Plano B": 49.16},
-    "Griffe": {"185 x 115 (In 12)": 2.24, "200 x 130 (In 8° écu)": 2.91, "245 x 160 (In 8° raisin)": 3.36, "270 x 175 (In 8° jésus)": 4.03, "320 x 245 (In 4° raisin)": 5.15, "350 x 270 (In 4° jésus)": 6.27, "440 x 280 (Folio carré)": 7.03, "490 x 320 (Folio raisin)": 7.88, "540 x 350 (Folio jésus)": 8.51, "600 x 440 (Grand folio)": 9.40, "Plano A": 10.19, "Plano B": 11.20},
-    "Plats conservés": {"185 x 115 (In 12)": 12.52, "200 x 130 (In 8° écu)": 16.27, "245 x 160 (In 8° raisin)": 18.77, "270 x 175 (In 8° jésus)": 22.53, "320 x 245 (In 4° raisin)": 28.78, "350 x 270 (In 4° jésus)": 35.04, "440 x 280 (Folio carré)": 39.30, "490 x 320 (Folio raisin)": 44.05, "540 x 350 (Folio jésus)": 47.56, "600 x 440 (Grand folio)": 52.56, "Plano A": 56.94, "Plano B": 62.58},
-    "Onglets": {"185 x 115 (In 12)": 0.92, "200 x 130 (In 8° écu)": 1.20, "245 x 160 (In 8° raisin)": 1.38, "270 x 175 (In 8° jésus)": 1.66, "320 x 245 (In 4° raisin)": 2.12, "350 x 270 (In 4° jésus)": 2.58, "440 x 280 (Folio carré)": 2.89, "490 x 320 (Folio raisin)": 3.24, "540 x 350 (Folio jésus)": 3.50, "600 x 440 (Grand folio)": 3.86, "Plano A": 4.19, "Plano B": 4.60},
-    "Doublage japon": {"185 x 115 (In 12)": 6.81, "200 x 130 (In 8° écu)": 8.85, "245 x 160 (In 8° raisin)": 10.21, "270 x 175 (In 8° jésus)": 12.26, "320 x 245 (In 4° raisin)": 15.66, "350 x 270 (In 4° jésus)": 19.07, "440 x 280 (Folio carré)": 21.38, "490 x 320 (Folio raisin)": 23.97, "540 x 350 (Folio jésus)": 25.88, "600 x 440 (Grand folio)": 28.60, "Plano A": 30.98, "Plano B": 34.05},
-    "Charnières toile": {"185 x 115 (In 12)": 1.66, "200 x 130 (In 8° écu)": 2.15, "245 x 160 (In 8° raisin)": 2.48, "270 x 175 (In 8° jésus)": 2.98, "320 x 245 (In 4° raisin)": 3.81, "350 x 270 (In 4° jésus)": 4.64, "440 x 280 (Folio carré)": 5.20, "490 x 320 (Folio raisin)": 5.83, "540 x 350 (Folio jésus)": 6.29, "600 x 440 (Grand folio)": 6.96, "Plano A": 7.54, "Plano B": 8.28},
-    "Conservation de gardes": {"185 x 115 (In 12)": 12.70, "200 x 130 (In 8° écu)": 16.51, "245 x 160 (In 8° raisin)": 19.05, "270 x 175 (In 8° jésus)": 22.86, "320 x 245 (In 4° raisin)": 29.21, "350 x 270 (In 4° jésus)": 35.56, "440 x 280 (Folio carré)": 39.88, "490 x 320 (Folio raisin)": 44.70, "540 x 350 (Folio jésus)": 48.26, "600 x 440 (Grand folio)": 53.34, "Plano A": 57.78, "Plano B": 63.50},
-    "Couture sur nerfs": {"185 x 115 (In 12)": 18.22, "200 x 130 (In 8° écu)": 23.69, "245 x 160 (In 8° raisin)": 27.33, "270 x 175 (In 8° jésus)": 32.80, "320 x 245 (In 4° raisin)": 41.91, "350 x 270 (In 4° jésus)": 51.02, "440 x 280 (Folio carré)": 57.21, "490 x 320 (Folio raisin)": 64.14, "540 x 350 (Folio jésus)": 69.24, "600 x 440 (Grand folio)": 76.53, "Plano A": 82.90, "Plano B": 91.10},
-    "Couvrure sur nerf": {"185 x 115 (In 12)": 9.85, "200 x 130 (In 8° écu)": 12.80, "245 x 160 (In 8° raisin)": 14.77, "270 x 175 (In 8° jésus)": 17.72, "320 x 245 (In 4° raisin)": 22.65, "350 x 270 (In 4° jésus)": 27.57, "440 x 280 (Folio carré)": 30.92, "490 x 320 (Folio raisin)": 34.66, "540 x 350 (Folio jésus)": 37.42, "600 x 440 (Grand folio)": 41.36, "Plano A": 44.80, "Plano B": 49.23},
-    "Filets fleurons": {"185 x 115 (In 12)": 1.66, "200 x 130 (In 8° écu)": 2.15, "245 x 160 (In 8° raisin)": 2.48, "270 x 175 (In 8° jésus)": 2.98, "320 x 245 (In 4° raisin)": 3.81, "350 x 270 (In 4° jésus)": 4.64, "440 x 280 (Folio carré)": 5.20, "490 x 320 (Folio raisin)": 5.83, "540 x 350 (Folio jésus)": 6.29, "600 x 440 (Grand folio)": 6.96, "Plano A": 7.54, "Plano B": 8.28},
-    "Plaçure": {"185 x 115 (In 12)": 1.66, "200 x 130 (In 8° écu)": 2.15, "245 x 160 (In 8° raisin)": 2.48, "270 x 175 (In 8° jésus)": 2.98, "320 x 245 (In 4° raisin)": 3.81, "350 x 270 (In 4° jésus)": 4.64, "440 x 280 (Folio carré)": 5.20, "490 x 320 (Folio raisin)": 5.83, "540 x 350 (Folio jésus)": 6.29, "600 x 440 (Grand folio)": 6.96, "Plano A": 7.54, "Plano B": 8.28},
-    "Sup ouvrage déjà relié": {"185 x 115 (In 12)": 12.70, "200 x 130 (In 8° écu)": 16.51, "245 x 160 (In 8° raisin)": 19.05, "270 x 175 (In 8° jésus)": 22.86, "320 x 245 (In 4° raisin)": 29.21, "350 x 270 (In 4° jésus)": 35.56, "440 x 280 (Folio carré)": 39.88, "490 x 320 (Folio raisin)": 44.70, "540 x 350 (Folio jésus)": 48.26, "600 x 440 (Grand folio)": 53.34, "Plano A": 57.78, "Plano B": 63.50},
-    "Plaçure intercalaires": {"185 x 115 (In 12)": 1.12, "200 x 130 (In 8° écu)": 1.46, "245 x 160 (In 8° raisin)": 1.68, "270 x 175 (In 8° jésus)": 2.02, "320 x 245 (In 4° raisin)": 2.58, "350 x 270 (In 4° jésus)": 3.13, "440 x 280 (Folio carré)": 3.52, "490 x 320 (Folio raisin)": 3.94, "540 x 350 (Folio jésus)": 4.25, "600 x 440 (Grand folio)": 4.70, "Plano A": 5.09, "Plano B": 5.60},
-    "Doublage couverture": {"185 x 115 (In 12)": 3.19, "200 x 130 (In 8° écu)": 4.15, "245 x 160 (In 8° raisin)": 4.79, "270 x 175 (In 8° jésus)": 5.74, "320 x 245 (In 4° raisin)": 7.34, "350 x 270 (In 4° jésus)": 8.93, "440 x 280 (Folio carré)": 10.02, "490 x 320 (Folio raisin)": 11.23, "540 x 350 (Folio jésus)": 12.12, "600 x 440 (Grand folio)": 13.40, "Plano A": 14.52, "Plano B": 15.95},
-    "Montage de couverture": {"185 x 115 (In 12)": 2.24, "200 x 130 (In 8° écu)": 2.91, "245 x 160 (In 8° raisin)": 3.36, "270 x 175 (In 8° jésus)": 4.03, "320 x 245 (In 4° raisin)": 5.15, "350 x 270 (In 4° jésus)": 6.27, "440 x 280 (Folio carré)": 7.03, "490 x 320 (Folio raisin)": 7.88, "540 x 350 (Folio jésus)": 8.51, "600 x 440 (Grand folio)": 9.40, "Plano A": 10.19, "Plano B": 11.20},
-    "Fonds de cahiers": {"185 x 115 (In 12)": 1.23, "200 x 130 (In 8° écu)": 1.60, "245 x 160 (In 8° raisin)": 1.84, "270 x 175 (In 8° jésus)": 2.21, "320 x 245 (In 4° raisin)": 2.82, "350 x 270 (In 4° jésus)": 3.44, "440 x 280 (Folio carré)": 3.85, "490 x 320 (Folio raisin)": 4.32, "540 x 350 (Folio jésus)": 4.66, "600 x 440 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13},
-    "Pose antivol": {"185 x 115 (In 12)": 0.43, "200 x 130 (In 8° écu)": 0.56, "245 x 160 (In 8° raisin)": 0.64, "270 x 175 (In 8° jésus)": 0.77, "320 x 245 (In 4° raisin)": 0.99, "350 x 270 (In 4° jésus)": 1.21, "440 x 280 (Folio carré)": 1.35, "490 x 320 (Folio raisin)": 1.51, "540 x 350 (Folio jésus)": 1.63, "600 x 440 (Grand folio)": 1.80, "Plano A": 1.95, "Plano B": 2.15},
-    "Désacidification": {"185 x 115 (In 12)": 0.00, "200 x 130 (In 8° écu)": 0.00, "245 x 160 (In 8° raisin)": 0.00, "270 x 175 (In 8° jésus)": 0.00, "320 x 245 (In 4° raisin)": 0.00, "350 x 270 (In 4° jésus)": 0.00, "440 x 280 (Folio carré)": 0.00, "490 x 320 (Folio raisin)": 0.00, "540 x 350 (Folio jésus)": 0.00, "600 x 440 (Grand folio)": 0.00, "Plano A": 40.71, "Plano B": 40.71},
-    "Désinfection": {"185 x 115 (In 12)": 0.00, "200 x 130 (In 8° écu)": 0.00, "245 x 160 (In 8° raisin)": 0.00, "270 x 175 (In 8° jésus)": 0.00, "320 x 245 (In 4° raisin)": 0.00, "350 x 270 (In 4° jésus)": 0.00, "440 x 280 (Folio carré)": 0.00, "490 x 320 (Folio raisin)": 0.00, "540 x 350 (Folio jésus)": 0.00, "600 x 440 (Grand folio)": 0.00, "Plano A": 40.71, "Plano B": 40.71},
-    "Charnière cuir": {"185 x 115 (In 12)": 0.00, "200 x 130 (In 8° écu)": 0.00, "245 x 160 (In 8° raisin)": 0.00, "270 x 175 (In 8° jésus)": 0.00, "320 x 245 (In 4° raisin)": 0.00, "350 x 270 (In 4° jésus)": 0.00, "440 x 280 (Folio carré)": 0.00, "490 x 320 (Folio raisin)": 0.00, "540 x 350 (Folio jésus)": 0.00, "600 x 440 (Grand folio)": 0.00, "Plano A": 40.71, "Plano B": 40.71},
-    "Enlever agrafes": {"185 x 115 (In 12)": 0.00, "200 x 130 (In 8° écu)": 0.00, "245 x 160 (In 8° raisin)": 0.00, "270 x 175 (In 8° jésus)": 0.00, "320 x 245 (In 4° raisin)": 0.00, "350 x 270 (In 4° jésus)": 0.00, "440 x 280 (Folio carré)": 3.85, "490 x 320 (Folio raisin)": 4.32, "540 x 350 (Folio jésus)": 4.66, "600 x 440 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13},
-    "Couture manuelle sur rubans": {"185 x 115 (In 12)": 0.00, "200 x 130 (In 8° écu)": 0.00, "245 x 160 (In 8° raisin)": 1.84, "270 x 175 (In 8° jésus)": 2.21, "320 x 245 (In 4° raisin)": 2.82, "350 x 270 (In 4° jésus)": 3.44, "440 x 280 (Folio carré)": 3.85, "490 x 320 (Folio raisin)": 4.32, "540 x 350 (Folio jésus)": 4.66, "600 x 440 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13}
+    "Pièce de titre": {"115 x 185 (In 12)": 5.05, "130 x 200 (In 8° écu)": 6.56, "160 x 245 (In 8° raisin)": 7.57, "175 x 270 (In 8° jésus)": 9.08, "245 x 320 (In 4° raisin)": 11.61, "270 x 350 (In 4° jésus)": 14.13, "280 x 440 (Folio carré)": 15.84, "320 x 490 (Folio raisin)": 17.76, "350 x 540 (Folio jésus)": 19.17, "440 x 600 (Grand folio)": 21.19, "Plano A": 22.96, "Plano B": 25.23},
+    "Sous titre": {"115 x 185 (In 12)": 7.01, "130 x 200 (In 8° écu)": 9.11, "160 x 245 (In 8° raisin)": 10.51, "175 x 270 (In 8° jésus)": 12.62, "245 x 320 (In 4° raisin)": 16.12, "270 x 350 (In 4° jésus)": 19.63, "280 x 440 (Folio carré)": 22.01, "320 x 490 (Folio raisin)": 24.67, "350 x 540 (Folio jésus)": 26.63, "440 x 600 (Grand folio)": 29.44, "Plano A": 31.89, "Plano B": 35.05},
+    "Titrage main": {"115 x 185 (In 12)": 9.83, "130 x 200 (In 8° écu)": 12.78, "160 x 245 (In 8° raisin)": 14.75, "175 x 270 (In 8° jésus)": 17.70, "245 x 320 (In 4° raisin)": 22.61, "270 x 350 (In 4° jésus)": 27.53, "280 x 440 (Folio carré)": 30.87, "320 x 490 (Folio raisin)": 34.61, "350 x 540 (Folio jésus)": 37.36, "440 x 600 (Grand folio)": 41.29, "Plano A": 44.73, "Plano B": 49.16},
+    "Titre caractère latin": {"115 x 185 (In 12)": 9.83, "130 x 200 (In 8° écu)": 12.78, "160 x 245 (In 8° raisin)": 14.75, "175 x 270 (In 8° jésus)": 17.70, "245 x 320 (In 4° raisin)": 22.61, "270 x 350 (In 4° jésus)": 27.53, "280 x 440 (Folio carré)": 30.87, "320 x 490 (Folio raisin)": 34.61, "350 x 540 (Folio jésus)": 37.36, "440 x 600 (Grand folio)": 41.29, "Plano A": 44.73, "Plano B": 49.16},
+    "Titre autre caractère": {"115 x 185 (In 12)": 9.83, "130 x 200 (In 8° écu)": 12.78, "160 x 245 (In 8° raisin)": 14.75, "175 x 270 (In 8° jésus)": 17.70, "245 x 320 (In 4° raisin)": 22.61, "270 x 350 (In 4° jésus)": 27.53, "280 x 440 (Folio carré)": 30.87, "320 x 490 (Folio raisin)": 34.61, "350 x 540 (Folio jésus)": 37.36, "440 x 600 (Grand folio)": 41.29, "Plano A": 44.73, "Plano B": 49.16},
+    "Griffe": {"115 x 185 (In 12)": 2.24, "130 x 200 (In 8° écu)": 2.91, "160 x 245 (In 8° raisin)": 3.36, "175 x 270 (In 8° jésus)": 4.03, "245 x 320 (In 4° raisin)": 5.15, "270 x 350 (In 4° jésus)": 6.27, "280 x 440 (Folio carré)": 7.03, "320 x 490 (Folio raisin)": 7.88, "350 x 540 (Folio jésus)": 8.51, "440 x 600 (Grand folio)": 9.40, "Plano A": 10.19, "Plano B": 11.20},
+    "Plats conservés": {"115 x 185 (In 12)": 12.52, "130 x 200 (In 8° écu)": 16.27, "160 x 245 (In 8° raisin)": 18.77, "175 x 270 (In 8° jésus)": 22.53, "245 x 320 (In 4° raisin)": 28.78, "270 x 350 (In 4° jésus)": 35.04, "280 x 440 (Folio carré)": 39.30, "320 x 490 (Folio raisin)": 44.05, "350 x 540 (Folio jésus)": 47.56, "440 x 600 (Grand folio)": 52.56, "Plano A": 56.94, "Plano B": 62.58},
+    "Onglets": {"115 x 185 (In 12)": 0.92, "130 x 200 (In 8° écu)": 1.20, "160 x 245 (In 8° raisin)": 1.38, "175 x 270 (In 8° jésus)": 1.66, "245 x 320 (In 4° raisin)": 2.12, "270 x 350 (In 4° jésus)": 2.58, "280 x 440 (Folio carré)": 2.89, "320 x 490 (Folio raisin)": 3.24, "350 x 540 (Folio jésus)": 3.50, "440 x 600 (Grand folio)": 3.86, "Plano A": 4.19, "Plano B": 4.60},
+    "Doublage japon": {"115 x 185 (In 12)": 6.81, "130 x 200 (In 8° écu)": 8.85, "160 x 245 (In 8° raisin)": 10.21, "175 x 270 (In 8° jésus)": 12.26, "245 x 320 (In 4° raisin)": 15.66, "270 x 350 (In 4° jésus)": 19.07, "280 x 440 (Folio carré)": 21.38, "320 x 490 (Folio raisin)": 23.97, "350 x 540 (Folio jésus)": 25.88, "440 x 600 (Grand folio)": 28.60, "Plano A": 30.98, "Plano B": 34.05},
+    "Charnières toile": {"115 x 185 (In 12)": 1.66, "130 x 200 (In 8° écu)": 2.15, "160 x 245 (In 8° raisin)": 2.48, "175 x 270 (In 8° jésus)": 2.98, "245 x 320 (In 4° raisin)": 3.81, "270 x 350 (In 4° jésus)": 4.64, "280 x 440 (Folio carré)": 5.20, "320 x 490 (Folio raisin)": 5.83, "350 x 540 (Folio jésus)": 6.29, "440 x 600 (Grand folio)": 6.96, "Plano A": 7.54, "Plano B": 8.28},
+    "Conservation de gardes": {"115 x 185 (In 12)": 12.70, "130 x 200 (In 8° écu)": 16.51, "160 x 245 (In 8° raisin)": 19.05, "175 x 270 (In 8° jésus)": 22.86, "245 x 320 (In 4° raisin)": 29.21, "270 x 350 (In 4° jésus)": 35.56, "280 x 440 (Folio carré)": 39.88, "320 x 490 (Folio raisin)": 44.70, "350 x 540 (Folio jésus)": 48.26, "440 x 600 (Grand folio)": 53.34, "Plano A": 57.78, "Plano B": 63.50},
+    "Couture sur nerfs": {"115 x 185 (In 12)": 18.22, "130 x 200 (In 8° écu)": 23.69, "160 x 245 (In 8° raisin)": 27.33, "175 x 270 (In 8° jésus)": 32.80, "245 x 320 (In 4° raisin)": 41.91, "270 x 350 (In 4° jésus)": 51.02, "280 x 440 (Folio carré)": 57.21, "320 x 490 (Folio raisin)": 64.14, "350 x 540 (Folio jésus)": 69.24, "440 x 600 (Grand folio)": 76.53, "Plano A": 82.90, "Plano B": 91.10},
+    "Couvrure sur nerf": {"115 x 185 (In 12)": 9.85, "130 x 200 (In 8° écu)": 12.80, "160 x 245 (In 8° raisin)": 14.77, "175 x 270 (In 8° jésus)": 17.72, "245 x 320 (In 4° raisin)": 22.65, "270 x 350 (In 4° jésus)": 27.57, "280 x 440 (Folio carré)": 30.92, "320 x 490 (Folio raisin)": 34.66, "350 x 540 (Folio jésus)": 37.42, "440 x 600 (Grand folio)": 41.36, "Plano A": 44.80, "Plano B": 49.23},
+    "Filets fleurons": {"115 x 185 (In 12)": 1.66, "130 x 200 (In 8° écu)": 2.15, "160 x 245 (In 8° raisin)": 2.48, "175 x 270 (In 8° jésus)": 2.98, "245 x 320 (In 4° raisin)": 3.81, "270 x 350 (In 4° jésus)": 4.64, "280 x 440 (Folio carré)": 5.20, "320 x 490 (Folio raisin)": 5.83, "350 x 540 (Folio jésus)": 6.29, "440 x 600 (Grand folio)": 6.96, "Plano A": 7.54, "Plano B": 8.28},
+    "Plaçure": {"115 x 185 (In 12)": 1.66, "130 x 200 (In 8° écu)": 2.15, "160 x 245 (In 8° raisin)": 2.48, "175 x 270 (In 8° jésus)": 2.98, "245 x 320 (In 4° raisin)": 3.81, "270 x 350 (In 4° jésus)": 4.64, "280 x 440 (Folio carré)": 5.20, "320 x 490 (Folio raisin)": 5.83, "350 x 540 (Folio jésus)": 6.29, "440 x 600 (Grand folio)": 6.96, "Plano A": 7.54, "Plano B": 8.28},
+    "Sup ouvrage déjà relié": {"115 x 185 (In 12)": 12.70, "130 x 200 (In 8° écu)": 16.51, "160 x 245 (In 8° raisin)": 19.05, "175 x 270 (In 8° jésus)": 22.86, "245 x 320 (In 4° raisin)": 29.21, "270 x 350 (In 4° jésus)": 35.56, "280 x 440 (Folio carré)": 39.88, "320 x 490 (Folio raisin)": 44.70, "350 x 540 (Folio jésus)": 48.26, "440 x 600 (Grand folio)": 53.34, "Plano A": 57.78, "Plano B": 63.50},
+    "Plaçure intercalaires": {"115 x 185 (In 12)": 1.12, "130 x 200 (In 8° écu)": 1.46, "160 x 245 (In 8° raisin)": 1.68, "175 x 270 (In 8° jésus)": 2.02, "245 x 320 (In 4° raisin)": 2.58, "270 x 350 (In 4° jésus)": 3.13, "280 x 440 (Folio carré)": 3.52, "320 x 490 (Folio raisin)": 3.94, "350 x 540 (Folio jésus)": 4.25, "440 x 600 (Grand folio)": 4.70, "Plano A": 5.09, "Plano B": 5.60},
+    "Doublage couverture": {"115 x 185 (In 12)": 3.19, "130 x 200 (In 8° écu)": 4.15, "160 x 245 (In 8° raisin)": 4.79, "175 x 270 (In 8° jésus)": 5.74, "245 x 320 (In 4° raisin)": 7.34, "270 x 350 (In 4° jésus)": 8.93, "280 x 440 (Folio carré)": 10.02, "320 x 490 (Folio raisin)": 11.23, "350 x 540 (Folio jésus)": 12.12, "440 x 600 (Grand folio)": 13.40, "Plano A": 14.52, "Plano B": 15.95},
+    "Montage de couverture": {"115 x 185 (In 12)": 2.24, "130 x 200 (In 8° écu)": 2.91, "160 x 245 (In 8° raisin)": 3.36, "175 x 270 (In 8° jésus)": 4.03, "245 x 320 (In 4° raisin)": 5.15, "270 x 350 (In 4° jésus)": 6.27, "280 x 440 (Folio carré)": 7.03, "320 x 490 (Folio raisin)": 7.88, "350 x 540 (Folio jésus)": 8.51, "440 x 600 (Grand folio)": 9.40, "Plano A": 10.19, "Plano B": 11.20},
+    "Fonds de cahiers": {"115 x 185 (In 12)": 1.23, "130 x 200 (In 8° écu)": 1.60, "160 x 245 (In 8° raisin)": 1.84, "175 x 270 (In 8° jésus)": 2.21, "245 x 320 (In 4° raisin)": 2.82, "270 x 350 (In 4° jésus)": 3.44, "280 x 440 (Folio carré)": 3.85, "320 x 490 (Folio raisin)": 4.32, "350 x 540 (Folio jésus)": 4.66, "440 x 600 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13},
+    "Pose antivol": {"115 x 185 (In 12)": 0.43, "130 x 200 (In 8° écu)": 0.56, "160 x 245 (In 8° raisin)": 0.64, "175 x 270 (In 8° jésus)": 0.77, "245 x 320 (In 4° raisin)": 0.99, "270 x 350 (In 4° jésus)": 1.21, "280 x 440 (Folio carré)": 1.35, "320 x 490 (Folio raisin)": 1.51, "350 x 540 (Folio jésus)": 1.63, "440 x 600 (Grand folio)": 1.80, "Plano A": 1.95, "Plano B": 2.15},
+    "Désacidification": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 0.00, "175 x 270 (In 8° jésus)": 0.00, "245 x 320 (In 4° raisin)": 0.00, "270 x 350 (In 4° jésus)": 0.00, "280 x 440 (Folio carré)": 0.00, "320 x 490 (Folio raisin)": 0.00, "350 x 540 (Folio jésus)": 0.00, "440 x 600 (Grand folio)": 0.00, "Plano A": 40.71, "Plano B": 40.71},
+    "Désinfection": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 0.00, "175 x 270 (In 8° jésus)": 0.00, "245 x 320 (In 4° raisin)": 0.00, "270 x 350 (In 4° jésus)": 0.00, "280 x 440 (Folio carré)": 0.00, "320 x 490 (Folio raisin)": 0.00, "350 x 540 (Folio jésus)": 0.00, "440 x 600 (Grand folio)": 0.00, "Plano A": 40.71, "Plano B": 40.71},
+    "Charnière cuir": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 0.00, "175 x 270 (In 8° jésus)": 0.00, "245 x 320 (In 4° raisin)": 0.00, "270 x 350 (In 4° jésus)": 0.00, "280 x 440 (Folio carré)": 0.00, "320 x 490 (Folio raisin)": 0.00, "350 x 540 (Folio jésus)": 0.00, "440 x 600 (Grand folio)": 0.00, "Plano A": 40.71, "Plano B": 40.71},
+    "Enlever agrafes": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 0.00, "175 x 270 (In 8° jésus)": 0.00, "245 x 320 (In 4° raisin)": 0.00, "270 x 350 (In 4° jésus)": 0.00, "280 x 440 (Folio carré)": 3.85, "320 x 490 (Folio raisin)": 4.32, "350 x 540 (Folio jésus)": 4.66, "440 x 600 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13},
+    "Couture manuelle sur rubans": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 1.84, "175 x 270 (In 8° jésus)": 2.21, "245 x 320 (In 4° raisin)": 2.82, "270 x 350 (In 4° jésus)": 3.44, "280 x 440 (Folio carré)": 3.85, "320 x 490 (Folio raisin)": 4.32, "350 x 540 (Folio jésus)": 4.66, "440 x 600 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13}
 }
 
-FORMATS_COLONNES = ["185 x 115 (In 12)", "200 x 130 (In 8° écu)", "245 x 160 (In 8° raisin)", "270 x 175 (In 8° jésus)", "320 x 245 (In 4° raisin)", "350 x 270 (In 4° jésus)", "440 x 280 (Folio carré)", "490 x 320 (Folio raisin)", "540 x 350 (Folio jésus)", "600 x 440 (Grand folio)", "Plano A", "Plano B"]
+FORMATS_COLONNES = ["115 x 185 (In 12)", "130 x 200 (In 8° écu)", "160 x 245 (In 8° raisin)", "175 x 270 (In 8° jésus)", "245 x 320 (In 4° raisin)", "270 x 350 (In 4° jésus)", "280 x 440 (Folio carré)", "320 x 490 (Folio raisin)", "350 x 540 (Folio jésus)", "440 x 600 (Grand folio)", "Plano A", "Plano B"]
 
 def initialiser_bdd():
     conn = sqlite3.connect(DB_FILE)
@@ -95,17 +96,16 @@ def recuperer_tarif_option(nom_client, designation, format_nom):
     return TARIFS_STANDARDS.get(designation, {}).get(format_nom, 0.00)
 
 def determiner_categorie_format(l, h):
-    """Détermine la catégorie en vérifiant d'abord la Largeur (l) puis la Hauteur (h)."""
-    if l <= 185 and h <= 115: return "185 x 115 (In 12)"
-    elif l <= 200 and h <= 130: return "200 x 130 (In 8° écu)"
-    elif l <= 245 and h <= 160: return "245 x 160 (In 8° raisin)"
-    elif l <= 270 and h <= 175: return "270 x 175 (In 8° jésus)"
-    elif l <= 320 and h <= 245: return "320 x 245 (In 4° raisin)"
-    elif l <= 350 and h <= 270: return "350 x 270 (In 4° jésus)"
-    elif l <= 440 and h <= 280: return "440 x 280 (Folio carré)"
-    elif l <= 490 and h <= 320: return "490 x 320 (Folio raisin)"
-    elif l <= 540 and h <= 350: return "540 x 350 (Folio jésus)"
-    elif l <= 600 and h <= 440: return "600 x 440 (Grand folio)"
+    if l <= 115 and h <= 185: return "115 x 185 (In 12)"
+    elif l <= 130 and h <= 200: return "130 x 200 (In 8° écu)"
+    elif l <= 160 and h <= 245: return "160 x 245 (In 8° raisin)"
+    elif l <= 175 and h <= 270: return "175 x 270 (In 8° jésus)"
+    elif l <= 245 and h <= 320: return "245 x 320 (In 4° raisin)"
+    elif l <= 270 and h <= 350: return "270 x 350 (In 4° jésus)"
+    elif l <= 280 and h <= 440: return "280 x 440 (Folio carré)"
+    elif l <= 320 and h <= 490: return "320 x 490 (Folio raisin)"
+    elif l <= 350 and h <= 540: return "350 x 540 (Folio jésus)"
+    elif l <= 440 and h <= 600: return "440 x 600 (Grand folio)"
     elif l <= 700: return "Plano A"
     else: return "Plano B"
 
@@ -203,6 +203,7 @@ def recuperer_livre_specifique(client, train, num_livre):
     conn.close()
     return dict(row) if row else None
 
+# Correction SQL : Largeur (petit chiffre) puis Hauteur (grand chiffre)
 def recuperer_livres_du_train(client, train):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -232,7 +233,7 @@ tabs = st.tabs(["📚 Saisie & Suivi des Livres", "🏢 Fiches Clients", "🏷�
 liste_couleurs = charger_couleurs()
 liste_clients_existants = lister_tous_les_clients()
 
-# --- TAB 3 : MANAGEMENT DE LA GRILLE DU CLIENT (ORDRE METIER CORRIGE) ---
+# --- TAB 3 : MANAGEMENT DE LA GRILLE DU CLIENT ---
 with tabs[2]:
     st.header("🏷️ Personnalisation des tarifs par Client")
     if not liste_clients_existants:
@@ -249,7 +250,7 @@ with tabs[2]:
         if not df_tarifs.empty:
             df_pivot = df_tarifs.pivot(index="Désignation", columns="format_nom", values="montant")
             df_pivot = df_pivot.reindex(columns=FORMATS_COLONNES)
-            st.markdown("💡 *Modifiez directement les montants dans les cases du tableau ci-dessous, puis validez.*")
+            st.markdown("💡 *Modifiez directement les montants (exprimés en Largeur × Hauteur mm) dans les cases ci-dessous, puis validez.*")
             df_edite = st.data_editor(df_pivot, use_container_width=True, num_rows="fixed")
             
             if st.button("💾 Enregistrer la nouvelle grille de " + client_tarif_sel):
@@ -351,7 +352,7 @@ with tabs[0]:
             with col_scanne: repro_scanne = st.checkbox("Scannée", value=bool(donnees_edition["repro_scanne"]) if donnees_edition else False)
             with col_report: repro_report = st.checkbox("Report", value=bool(donnees_edition["repro_report"]) if donnees_edition else False)
 
-            # --- SECTION 3 : DIMENSIONS ---
+            # --- SECTION 3 : DIMENSIONS (Saisie Largeur x Hauteur) ---
             st.write("---")
             st.subheader("3. Désignation format")
             c_dim1, c_dim2, c_dim3, c_dim4 = st.columns(4)
@@ -468,13 +469,14 @@ with tabs[0]:
                 if "livre_selectionne" in st.session_state: del st.session_state.livre_selectionne
                 st.rerun()
 
-        # --- COLONNE DE DROITE (VISUALISATION METIER CORRIGEE) ---
+        # --- COLONNE DE DROITE (VISUALISATION CORRIGEE : LARGEUR x HAUTEUR) ---
         with col_visualisation:
             st.header("📊 Suivi en direct du Train")
             if nom_client_valide and numero_train:
                 st.subheader(f"Client : {nom_client_valide} | Train : {numero_train}")
                 livres_train = recuperer_livres_du_train(nom_client_valide, numero_train)
                 if livres_train:
+                    # En-têtes et colonnes ordonnés strictement en Largeur puis Hauteur
                     df_train = pd.DataFrame(livres_train, columns=["N° Livre", "Nature", "État", "Largeur", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"])
                     reponse_selection = st.dataframe(df_train, use_container_width=True, hide_index=True, selection_mode="single-row", on_select="rerun")
                     if reponse_selection and "rows" in reponse_selection.get("selection", {}):

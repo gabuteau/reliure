@@ -184,8 +184,8 @@ with col_saisie:
     with c_trt1: traitement = st.selectbox("Traitement de structure", list_trt, index=idx_trt)
     
     list_rel = ["Bradel", "Emboîtage", "Passure en carton"]
-    idx_rel = list_rel.index(donnees_edition["type_reliure"]) if donnees_edition and donnees_edition["type_reliure"] in list_rel else 0    with c_trt2: type_reliure = st.selectbox("Type de reliure", list_rel, index=idx_rel)
-    
+    idx_rel = list_rel.index(donnees_edition["type_reliure"]) if donnees_edition and donnees_edition["type_reliure"] in list_rel else 0
+    with c_trt2: type_reliure = st.selectbox("Type de reliure", list_rel, index=idx_rel)
     list_cou = ["Cahiers machine", "Surjeté", "Cahier manuel"]
     idx_cou = list_cou.index(donnees_edition["type_couture"]) if donnees_edition and donnees_edition["type_couture"] in list_cou else 0
     with c_trt3: type_couture = st.selectbox("Type de couture", list_cou, index=idx_cou)

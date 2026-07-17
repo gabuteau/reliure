@@ -27,19 +27,19 @@ def initialiser_bdd():
             type_couture TEXT,
             agraphes BOOLEAN,
             nombre_cahiers INTEGER,
-            -- Titrage
+            -- Titrage principal
             sans_titrage BOOLEAN,
             titrage_sens TEXT,
             lignes_sup INTEGER,
             titrage_couleur TEXT,
             police TEXT,
-            -- Pièce de titre
-            cocher_piece_titre BOOLEAN,
-            couleur_pieces TEXT,
-            -- Toile & Couleur
+            -- Habillage
             type_toile TEXT,
             couleur TEXT,
-            -- Suppléments & Maquette
+            -- Option Pièce de titre (Après Habillage)
+            cocher_piece_titre BOOLEAN,
+            couleur_pieces_toile TEXT,
+            marquage_pieces TEXT,
             hauteur_maquette INTEGER,
             supplement_1 TEXT,
             supplement_2 TEXT,
@@ -79,7 +79,7 @@ def recuperer_livres_du_train(client, train):
     cursor = conn.cursor()
     cursor.execute("""
         SELECT numero_livre, nature_doc, etat_doc, hauteur, type_reliure, couleur,
-               CASE WHEN cocher_piece_titre THEN couleur_pieces ELSE 'Non' END as piece_titre
+               CASE WHEN cocher_piece_titre THEN 'Oui (' || couleur_pieces_toile || ')' ELSE 'Non' END as piece_titre
         FROM fiches_livres 
         WHERE nom_client = ? AND numero_train = ? 
         ORDER BY numero_livre ASC
@@ -171,15 +171,13 @@ with col_saisie:
 
     # --- SECTION 5 : TITRAGE ---
     st.write("---")
-    st.subheader("5. Spécifications du titrage & Marquage")
+    st.subheader("5. Spécifications du titrage")
     sans_titrage = st.checkbox("**Pas de titrage (Masquer la saisie)**", value=False)
 
     titrage_sens = "N/A"
     lignes_sup = 0
     titrage_couleur = "N/A"
     police = "N/A"
-    cocher_piece_titre = False
-    couleur_pieces = "N/A"
 
     if not sans_titrage:
         c_tit1, c_tit2, c_tit3, c_tit4 = st.columns(4)
@@ -187,16 +185,8 @@ with col_saisie:
         with c_tit2: lignes_sup = st.number_input("Lignes supplémentaires (Nbre)", min_value=0, value=0, step=1)
         with c_tit3: titrage_couleur = st.selectbox("Couleur du marquage (Caractères)", ["OR", "Noir", "Blanc", "Autre"])
         with c_tit4: police = st.radio("Police de caractère", ["Elzévir", "Baskerville"], horizontal=True)
-        
-        # Option Pièce de titre sous forme de case à cocher qui utilise la table de couleur
-        st.write("")
-        cocher_piece_titre = st.checkbox("Ajouter une pièce de titre")
-        if cocher_piece_titre:
-            c_p1, _ = st.columns([1, 1])
-            with c_p1:
-                couleur_pieces = st.selectbox("Couleur de la pièce de titre", options=liste_couleurs)
 
-    # --- SECTION 6 : TOILE & COULEURS ---
+    # --- SECTION 6 : HABILLAGE ---
     st.write("---")
     st.subheader("6. Habillage")
     c_toi1, c_toi2 = st.columns(2)
@@ -213,21 +203,38 @@ with col_saisie:
                 st.success(f"Couleur ajoutée !")
                 st.rerun()
 
-    # --- SECTION 7 : SUPPLÉMENTS & HAUTEUR MAQUETTE ---
+    # --- SECTION 7 : OPTION PIÈCE DE TITRE EN CASCADE ---
     st.write("---")
-    st.subheader("7. Hauteur maquette & Suppléments")
-    
-    hauteur_maquette = hauteur + 5
-    st.info(f"📏 **Hauteur de maquette calculée** : {hauteur_maquette} mm (H + 5 mm)")
-    
-    st.markdown("**Saisie libre des suppléments :**")
-    cs1, cs2 = st.columns(2)
-    with cs1:
-        supplement_1 = st.text_input("Supplément 1", placeholder="Saisie libre...")
-        supplement_2 = st.text_input("Supplément 2", placeholder="Saisie libre...")
-    with cs2:
-        supplement_3 = st.text_input("Supplément 3", placeholder="Saisie libre...")
-        supplement_4 = st.text_input("Supplément 4", placeholder="Saisie libre...")
+    st.subheader("7. Pièce de titre & Suppléments")
+    cocher_piece_titre = st.checkbox("**Activer une pièce de titre**", value=False)
+
+    # Valeurs par défaut si décoché
+    couleur_pieces_toile = "N/A"
+    marquage_pieces = "N/A"
+    supplement_1 = ""
+    supplement_2 = ""
+    supplement_3 = ""
+    supplement_4 = ""
+    hauteur_maquette = hauteur + 5  # Calculé de base
+
+    # Si coché, on débloque toute la suite demandée
+    if cocher_piece_titre:
+        c_p1, c_p2 = st.columns(2)
+        with c_p1:
+            couleur_pieces_toile = st.selectbox("Couleur de la pièce de titre (Table des toiles)", options=liste_couleurs)
+        with c_p2:
+            marquage_pieces = st.selectbox("Couleur du marquage de la pièce", ["OR", "Noir", "Blanc", "Autre"])
+            
+        st.info(f"📏 **Hauteur de maquette** : {hauteur_maquette} mm (H + 5 mm)")
+        
+        st.markdown("**Zones de saisie libre (Suppléments) :**")
+        cs1, cs2 = st.columns(2)
+        with cs1:
+            supplement_1 = st.text_input("Supplément 1")
+            supplement_2 = st.text_input("Supplément 2")
+        with cs2:
+            supplement_3 = st.text_input("Supplément 3")
+            supplement_4 = st.text_input("Supplément 4")
 
     # Bouton de validation
     st.write("---")
@@ -246,9 +253,9 @@ with col_saisie:
                 "agraphes": agraphes, "nombre_cahiers": nombre_cahiers,
                 "sans_titrage": sans_titrage, "titrage_sens": titrage_sens, "lignes_sup": lignes_sup, 
                 "titrage_couleur": titrage_couleur, "police": police,
-                "cocher_piece_titre": cocher_piece_titre, "couleur_pieces": couleur_pieces,
                 "type_toile": type_toile, "couleur": couleur,
-                "hauteur_maquette": hauteur_maquette,
+                "cocher_piece_titre": cocher_piece_titre, "couleur_pieces_toile": couleur_pieces_toile, 
+                "marquage_pieces": marquage_pieces, "hauteur_maquette": hauteur_maquette,
                 "supplement_1": supplement_1, "supplement_2": supplement_2, 
                 "supplement_3": supplement_3, "supplement_4": supplement_4
             }
@@ -267,7 +274,7 @@ with col_visualisation:
         if livres_train:
             df_train = pd.DataFrame(
                 livres_train, 
-                columns=["N° Livre", "Nature", "État", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre"]
+                columns=["N° Livre", "Nature", "État", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"]
             )
             st.dataframe(df_train, use_container_width=True, hide_index=True)
         else:

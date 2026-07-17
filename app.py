@@ -33,7 +33,7 @@ TARIFS_STANDARDS = {
     "Désinfection": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 0.00, "175 x 270 (In 8° jésus)": 0.00, "245 x 320 (In 4° raisin)": 0.00, "270 x 350 (In 4° jésus)": 0.00, "280 x 440 (Folio carré)": 0.00, "320 x 490 (Folio raisin)": 0.00, "350 x 540 (Folio jésus)": 0.00, "440 x 600 (Grand folio)": 0.00, "Plano A": 40.71, "Plano B": 40.71},
     "Charnière cuir": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 0.00, "175 x 270 (In 8° jésus)": 0.00, "245 x 320 (In 4° raisin)": 0.00, "270 x 350 (In 4° jésus)": 0.00, "280 x 440 (Folio carré)": 0.00, "320 x 490 (Folio raisin)": 0.00, "350 x 540 (Folio jésus)": 0.00, "440 x 600 (Grand folio)": 0.00, "Plano A": 40.71, "Plano B": 40.71},
     "Enlever agrafes": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 0.00, "175 x 270 (In 8° jésus)": 0.00, "245 x 320 (In 4° raisin)": 0.00, "270 x 350 (In 4° jésus)": 0.00, "280 x 440 (Folio carré)": 3.85, "320 x 490 (Folio raisin)": 4.32, "350 x 540 (Folio jésus)": 4.66, "440 x 600 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13},
-    "Couture manuelle sur rubans": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 1.84, "175 x 270 (In 8° jésus)": 2.21, "245 x 320 (In 4° raisin)": 2.82, "270 x 350 (In 4° jésus)": 3.44, "280 x 440 (Folio carré)": 3.85, "320 x 490 (Folio raisin)": 4.32, "540 x 350 (Folio jésus)": 4.66, "440 x 600 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13}
+    "Couture manuelle sur rubans": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 1.84, "175 x 270 (In 8° jésus)": 2.21, "245 x 320 (In 4° raisin)": 2.82, "270 x 350 (In 4° jésus)": 3.44, "280 x 440 (Folio carré)": 3.85, "320 x 490 (Folio raisin)": 4.32, "350 x 540 (Folio jésus)": 4.66, "440 x 600 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13}
 }
 
 FORMATS_COLONNES = ["115 x 185 (In 12)", "130 x 200 (In 8° écu)", "160 x 245 (In 8° raisin)", "175 x 270 (In 8° jésus)", "245 x 320 (In 4° raisin)", "270 x 350 (In 4° jésus)", "280 x 440 (Folio carré)", "320 x 490 (Folio raisin)", "350 x 540 (Folio jésus)", "440 x 600 (Grand folio)", "Plano A", "Plano B"]
@@ -395,13 +395,13 @@ with tabs[0]:
                 with c_tit3: titrage_couleur = st.selectbox("Marquage", list_marq, index=list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0)
                 with c_tit4: police = st.radio("Police", ["Elzévir", "Baskerville"], horizontal=True, index=0 if donnees_edition and donnees_edition["police"] == "Elzévir" else (1 if donnees_edition and donnees_edition["police"] == "Baskerville" else 0))
 
-            # --- SECTION 6 : HABILLAGE ---
+# --- SECTION 6 : HABILLAGE ---
             st.write("---")
             st.subheader("6. Habillage")
             c_toi1, c_toi2 = st.columns(2)
             list_toile = ["Buckram", "Fantaisie", "Autre"]
             with c_toi1: type_toile = st.selectbox("Type de toile", list_toile, index=list_toile.index(donnees_edition["type_toile"]) if donnees_edition and donnees_edition["type_toile"] in list_toile else 0)
-            with c_toi2: couleur = st.selectbox("Couleur de la toile", options=liste_couleurs, index=liste_couleurs.index(donnees_edition["couleur"]) if donnees_edition security_check=True and donnees_edition["couleur"] in liste_couleurs else 0)
+            with c_toi2: couleur = st.selectbox("Couleur de la toile", options=liste_couleurs, index=liste_couleurs.index(donnees_edition["couleur"]) if donnees_edition and donnees_edition["couleur"] in liste_couleurs else 0)
 
             # --- SECTION 7 : OPTION PIÈCE DE TITRE & SUPPLÉMENTS ---
             st.write("---")

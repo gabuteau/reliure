@@ -4,8 +4,8 @@ import pandas as pd
 from datetime import datetime
 
 # --- INITIALISATION DE LA BASE DE DONNÉES ---
-DB_FILE = "base_reliure_finale.db"
-
+DB_FILE = "base_reliure_OK.db"
+import os; os.remove("base_reliure_finale.db") if os.path.exists("base_reliure_finale.db") else None
 # Grille standard de référence (extraite de votre photo) - Ordre des clés adapté en Largeur x Hauteur
 TARIFS_STANDARDS = {
     "Pièce de titre": {"185 x 115 (In 12)": 5.05, "200 x 130 (In 8° écu)": 6.56, "245 x 160 (In 8° raisin)": 7.57, "270 x 175 (In 8° jésus)": 9.08, "320 x 245 (In 4° raisin)": 11.61, "350 x 270 (In 4° jésus)": 14.13, "440 x 280 (Folio carré)": 15.84, "490 x 320 (Folio raisin)": 17.76, "540 x 350 (Folio jésus)": 19.17, "600 x 440 (Grand folio)": 21.19, "Plano A": 22.96, "Plano B": 25.23},

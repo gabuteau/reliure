@@ -10,9 +10,27 @@ TARIFS_INITIALISATION = {
     "Pièce de titre": 5.05, "Sous titre": 7.01, "Titrage main": 9.83, "Titre caractère latin": 9.83, "Griffe": 2.24, "Plats conservés": 12.52
 }
 
+def initialiser_tables_tarifs():
+    """Garantit la présence de la table tarifs_clients pour éviter les OperationalError."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tarifs_clients (
+            nom_client TEXT NOT NULL, 
+            designation TEXT NOT NULL, 
+            format_nom TEXT NOT NULL, 
+            montant REAL NOT NULL,
+            PRIMARY KEY (nom_client, designation, format_nom)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
 def lister_tous_les_clients():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    # On s'assure aussi que la table clients existe si on arrive directement sur cette page
+    cursor.execute("CREATE TABLE IF NOT EXISTS clients (nom TEXT PRIMARY KEY, adresse TEXT, telephone TEXT, email TEXT, contact_nom TEXT, notes TEXT)")
     cursor.execute("SELECT nom FROM clients ORDER BY nom ASC")
     clients = [row[0] for row in cursor.fetchall()]
     conn.close()
@@ -25,12 +43,18 @@ def dupliquer_grille_standard_pour_client(nom_client):
     if not cursor.fetchone():
         for des, mt in TARIFS_INITIALISATION.items():
             for fmt in FORMATS_COLONNES:
-                cursor.execute("INSERT INTO tarifs_clients (nom_client, designation, format_nom, montant) VALUES (?, ?, ?, ?)", (nom_client, des, fmt, mt))
+                cursor.execute("""
+                    INSERT INTO tarifs_clients (nom_client, designation, format_nom, montant) 
+                    VALUES (?, ?, ?, ?)
+                """, (nom_client, des, fmt, mt))
         conn.commit()
     conn.close()
 
 st.set_page_config(page_title="Grilles Tarifaires", layout="wide")
 st.title("🏷️ Personnalisation des tarifs par Client")
+
+# Exécution de la sécurité BDD au chargement de la page
+initialiser_tables_tarifs()
 
 liste_clients_existants = lister_tous_les_clients()
 

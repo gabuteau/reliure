@@ -109,7 +109,6 @@ def charger_couleurs():
     cursor.execute("SELECT nom_couleur FROM couleurs_toile ORDER BY nom_couleur ASC")
     couleurs_perso = [row[0] for row in cursor.fetchall()]
     conn.close()
-    # Nettoyage strict de la ligne de retour
     return sorted(list(set(couleurs_base + couleurs_perso)))
 
 initialiser_bdd()
@@ -186,13 +185,19 @@ with col_saisie:
     list_rel = ["Bradel", "Emboîtage", "Passure en carton"]
     idx_rel = list_rel.index(donnees_edition["type_reliure"]) if donnees_edition and donnees_edition["type_reliure"] in list_rel else 0
     with c_trt2: type_reliure = st.selectbox("Type de reliure", list_rel, index=idx_rel)
+    
     list_cou = ["Cahiers machine", "Surjeté", "Cahier manuel"]
     idx_cou = list_cou.index(donnees_edition["type_couture"]) if donnees_edition and donnees_edition["type_couture"] in list_cou else 0
     with c_trt3: type_couture = st.selectbox("Type de couture", list_cou, index=idx_cou)
 
-    c_cah1, c_cah2 = st.columns(2)
-    with c_cah1: agraphes = st.checkbox("Présence d'agraphes", value=bool(donnees_edition["agraphes"]) if donnees_edition else False)
-    with c_cah2: nombre_cahiers = st.number_input("Nombre de cahiers", min_value=0, value=int(donnees_edition["nombre_cahiers"]) if donnees_edition else 0, step=1)
+    # Gestion de l'affichage conditionnel pour le type de couture "Cahier manuel"
+    agraphes = False
+    nombre_cahiers = 0
+    if type_couture == "Cahier manuel":
+        st.markdown("**Options spécifiques au Couture manuelle :**")
+        c_cah1, c_cah2 = st.columns(2)
+        with c_cah1: agraphes = st.checkbox("Présence d'agraphes", value=bool(donnees_edition["agraphes"]) if donnees_edition else False)
+        with c_cah2: nombre_cahiers = st.number_input("Nombre de cahiers", min_value=0, value=int(donnees_edition["nombre_cahiers"]) if donnees_edition else 0, step=1)
 
     # --- SECTION 5 : TITRAGE ---
     st.write("---")
@@ -208,7 +213,8 @@ with col_saisie:
         with c_tit1: titrage_sens = st.radio("Sens du titrage", ["Long", "Travers"], horizontal=True, index=idx_sens)
         with c_tit2: lignes_sup = st.number_input("Lignes supplémentaires (Nbre)", min_value=0, value=int(donnees_edition["lignes_sup"]) if donnees_edition else 0, step=1)
         
-        list_marq = ["OR", "Noir", "Blanc", "Autre"]
+        # Table de marquage mise à jour : OR, ARGENT, BLANC, NOIR
+        list_marq = ["OR", "ARGENT", "BLANC", "NOIR"]
         idx_marq = list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0
         with c_tit3: titrage_couleur = st.selectbox("Couleur du marquage (Caractères)", list_marq, index=idx_marq)
         
@@ -250,7 +256,8 @@ with col_saisie:
         idx_c_piece = liste_couleurs.index(donnees_edition["couleur_pieces_toile"]) if donnees_edition and donnees_edition["couleur_pieces_toile"] in liste_couleurs else 0
         with c_p1: couleur_pieces_toile = st.selectbox("Couleur de la pièce de titre", options=liste_couleurs, index=idx_c_piece)
         
-        list_mp = ["OR", "Noir", "Blanc", "Autre"]
+        # Utilisation de la même table de marquage mise à jour pour la pièce
+        list_mp = ["OR", "ARGENT", "BLANC", "NOIR"]
         idx_mp = list_mp.index(donnees_edition["marquage_pieces"]) if donnees_edition and donnees_edition["marquage_pieces"] in list_mp else 0
         with c_p2: marquage_pieces = st.selectbox("Couleur du marquage de la pièce", list_mp, index=idx_mp)
             

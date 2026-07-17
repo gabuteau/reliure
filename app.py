@@ -314,7 +314,7 @@ with col_visualisation:
                 df_train, 
                 use_container_width=True, 
                 hide_index=True,
-                selection_mode="single_row",
+                selection_mode="single",
                 on_select="rerun"
             )
             

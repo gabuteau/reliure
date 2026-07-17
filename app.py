@@ -8,7 +8,6 @@ DB_FILE = "base_reliure.db"
 def initialiser_bdd():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    # Table des livres
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS fiches_livres (
             nom_client TEXT NOT NULL,
@@ -34,16 +33,21 @@ def initialiser_bdd():
             lignes_sup INTEGER,
             titrage_couleur TEXT,
             police TEXT,
+            -- Pièce de titre
+            cocher_piece_titre BOOLEAN,
+            couleur_pieces TEXT,
             -- Toile & Couleur
             type_toile TEXT,
             couleur TEXT,
-            pieces_titre TEXT,
-            couleur_pieces TEXT,
+            -- Suppléments & Maquette
             hauteur_maquette INTEGER,
+            supplement_1 TEXT,
+            supplement_2 TEXT,
+            supplement_3 TEXT,
+            supplement_4 TEXT,
             PRIMARY KEY (nom_client, numero_train, numero_livre) ON CONFLICT REPLACE
         )
     """)
-    # Table pour stocker les couleurs personnalisées
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS couleurs_toile (
             nom_couleur TEXT PRIMARY KEY
@@ -74,8 +78,8 @@ def recuperer_livres_du_train(client, train):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT numero_livre, nature_doc, etat_doc, hauteur, type_reliure, couleur, 
-               CASE WHEN sans_titrage THEN 'Non' ELSE 'Oui' END as titrage
+        SELECT numero_livre, nature_doc, etat_doc, hauteur, type_reliure, couleur,
+               CASE WHEN cocher_piece_titre THEN couleur_pieces ELSE 'Non' END as piece_titre
         FROM fiches_livres 
         WHERE nom_client = ? AND numero_train = ? 
         ORDER BY numero_livre ASC
@@ -91,7 +95,7 @@ def ajouter_couleur_bdd(nouvelle_couleur):
         cursor.execute("INSERT INTO couleurs_toile (nom_couleur) VALUES (?)", (nouvelle_couleur,))
         conn.commit()
     except sqlite3.IntegrityError:
-        pass  # La couleur existe déjà
+        pass
     conn.close()
 
 def charger_couleurs():
@@ -101,7 +105,6 @@ def charger_couleurs():
     cursor.execute("SELECT nom_couleur FROM couleurs_toile ORDER BY nom_couleur ASC")
     couleurs_perso = [row[0] for row in cursor.fetchall()]
     conn.close()
-    # Fusionner la liste de base et les couleurs ajoutées en évitant les doublons
     return sorted(list(set(couleurs_base + couleurs_perso)))
 
 initialiser_bdd()
@@ -111,6 +114,7 @@ st.set_page_config(page_title="Saisie Devis + Traitements", layout="wide")
 st.title("📚 Saisie de Fiche — Devis + Traitements")
 
 col_saisie, col_visualisation = st.columns([1.2, 0.8])
+liste_couleurs = charger_couleurs()
 
 with col_saisie:
     st.header("📋 Saisie de la fiche")
@@ -165,67 +169,76 @@ with col_saisie:
     with c_cah1: agraphes = st.checkbox("Présence d'agraphes", value=False)
     with c_cah2: nombre_cahiers = st.number_input("Nombre de cahiers", min_value=0, value=0, step=1)
 
-    # --- SECTION 5 : TITRAGE (Gestion dynamique) ---
+    # --- SECTION 5 : TITRAGE ---
     st.write("---")
-    st.subheader("5. Spécifications du titrage")
-    sans_titrage = st.checkbox("**Pas de titrage (Masquer et désactiver la saisie)**", value=False)
+    st.subheader("5. Spécifications du titrage & Marquage")
+    sans_titrage = st.checkbox("**Pas de titrage (Masquer la saisie)**", value=False)
 
-    # Valeurs par défaut si pas de titrage
     titrage_sens = "N/A"
     lignes_sup = 0
     titrage_couleur = "N/A"
     police = "N/A"
-    pieces_titre = "N/A"
+    cocher_piece_titre = False
     couleur_pieces = "N/A"
 
-    # Si la case n'est pas cochée, on affiche les champs de saisie du titrage
     if not sans_titrage:
         c_tit1, c_tit2, c_tit3, c_tit4 = st.columns(4)
         with c_tit1: titrage_sens = st.radio("Sens du titrage", ["Long", "Travers"], horizontal=True)
         with c_tit2: lignes_sup = st.number_input("Lignes supplémentaires (Nbre)", min_value=0, value=0, step=1)
-        with c_tit3: titrage_couleur = st.selectbox("Couleur du titrage", ["OR", "Noir", "Blanc", "Autre"])
+        with c_tit3: titrage_couleur = st.selectbox("Couleur du marquage (Caractères)", ["OR", "Noir", "Blanc", "Autre"])
         with c_tit4: police = st.radio("Police de caractère", ["Elzévir", "Baskerville"], horizontal=True)
         
-        c_p1, c_p2 = st.columns(2)
-        with c_p1: pieces_titre = st.text_input("Pièces de titre")
-        with c_p2: couleur_pieces = st.text_input("Couleur pièce de titre")
+        # Option Pièce de titre sous forme de case à cocher qui utilise la table de couleur
+        st.write("")
+        cocher_piece_titre = st.checkbox("Ajouter une pièce de titre")
+        if cocher_piece_titre:
+            c_p1, _ = st.columns([1, 1])
+            with c_p1:
+                couleur_pieces = st.selectbox("Couleur de la pièce de titre", options=liste_couleurs)
 
-    # --- SECTION 6 : TOILE & GESTION DES COULEURS ---
+    # --- SECTION 6 : TOILE & COULEURS ---
     st.write("---")
-    st.subheader("6. Habillage & Couleur de la toile")
-    
-    # Chargement de la liste de couleurs mise à jour
-    liste_couleurs = charger_couleurs()
-    
+    st.subheader("6. Habillage")
     c_toi1, c_toi2 = st.columns(2)
     with c_toi1: 
         type_toile = st.selectbox("Type de toile", ["Buckram", "Fantaisie", "Autre"])
     with c_toi2: 
         couleur = st.selectbox("Couleur de la toile", options=liste_couleurs)
 
-    # Petit outil d'ajout de couleur directement sous la sélection
-    with st.expander("➕ Ajouter une nouvelle couleur de toile à la table"):
-        nouvelle_couleur_saisie = st.text_input("Nom de la nouvelle couleur (ex: Vert d'eau)").strip()
+    with st.expander("➕ Ajouter une nouvelle couleur au catalogue commun"):
+        nouvelle_couleur_saisie = st.text_input("Nom de la couleur").strip()
         if st.button("Enregistrer la couleur"):
             if nouvelle_couleur_saisie:
                 ajouter_couleur_bdd(nouvelle_couleur_saisie.capitalize())
-                st.success(f"La couleur '{nouvelle_couleur_saisie}' a été ajoutée. Elle est maintenant disponible dans la liste !")
+                st.success(f"Couleur ajoutée !")
                 st.rerun()
 
+    # --- SECTION 7 : SUPPLÉMENTS & HAUTEUR MAQUETTE ---
+    st.write("---")
+    st.subheader("7. Hauteur maquette & Suppléments")
+    
     hauteur_maquette = hauteur + 5
+    st.info(f"📏 **Hauteur de maquette calculée** : {hauteur_maquette} mm (H + 5 mm)")
+    
+    st.markdown("**Saisie libre des suppléments :**")
+    cs1, cs2 = st.columns(2)
+    with cs1:
+        supplement_1 = st.text_input("Supplément 1", placeholder="Saisie libre...")
+        supplement_2 = st.text_input("Supplément 2", placeholder="Saisie libre...")
+    with cs2:
+        supplement_3 = st.text_input("Supplément 3", placeholder="Saisie libre...")
+        supplement_4 = st.text_input("Supplément 4", placeholder="Saisie libre...")
 
-    # Bouton de validation de l'enregistrement complet
+    # Bouton de validation
     st.write("---")
     bouton_valider = st.button(f"💾 Valider l'enregistrement [Livre N° {numero_livre}]")
 
     if bouton_valider:
         if nom_client.strip() == "" or numero_train.strip() == "":
-            st.error("Le nom du client et le numéro de train sont obligatoires pour créer l'enregistrement.")
+            st.error("Le nom du client et le numéro de train sont obligatoires.")
         else:
             donnees_fiche = {
-                "nom_client": nom_client.strip(),
-                "numero_train": numero_train.strip(),
-                "numero_livre": numero_livre,
+                "nom_client": nom_client.strip(), "numero_train": numero_train.strip(), "numero_livre": numero_livre,
                 "nature_doc": nature_doc, "etat_doc": etat_doc, "option_autre": option_autre,
                 "repro_scanne": repro_scanne, "repro_report": repro_report,
                 "hauteur": hauteur, "largeur": largeur, "epaisseur": epaisseur, "ne_pas_rogner": ne_pas_rogner,
@@ -233,8 +246,11 @@ with col_saisie:
                 "agraphes": agraphes, "nombre_cahiers": nombre_cahiers,
                 "sans_titrage": sans_titrage, "titrage_sens": titrage_sens, "lignes_sup": lignes_sup, 
                 "titrage_couleur": titrage_couleur, "police": police,
-                "type_toile": type_toile, "couleur": couleur, "pieces_titre": pieces_titre, "couleur_pieces": couleur_pieces,
-                "hauteur_maquette": hauteur_maquette
+                "cocher_piece_titre": cocher_piece_titre, "couleur_pieces": couleur_pieces,
+                "type_toile": type_toile, "couleur": couleur,
+                "hauteur_maquette": hauteur_maquette,
+                "supplement_1": supplement_1, "supplement_2": supplement_2, 
+                "supplement_3": supplement_3, "supplement_4": supplement_4
             }
             
             enregistrer_ou_mettre_a_jour_livre(donnees_fiche)
@@ -251,7 +267,7 @@ with col_visualisation:
         if livres_train:
             df_train = pd.DataFrame(
                 livres_train, 
-                columns=["N° Livre", "Nature", "État", "Hauteur", "Reliure", "Couleur Toile", "Avec Titrage"]
+                columns=["N° Livre", "Nature", "État", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre"]
             )
             st.dataframe(df_train, use_container_width=True, hide_index=True)
         else:

@@ -59,6 +59,24 @@ def enregistrer_ou_mettre_a_jour_livre(donnees):
     conn.commit()
     conn.close()
 
+def lister_tous_les_clients():
+    """Récupère la liste unique des clients enregistrés."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT nom_client FROM fiches_livres ORDER BY nom_client ASC")
+    clients = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return clients
+
+def lister_les_trains_du_client(client):
+    """Récupère la liste unique des trains d'un client donné."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT numero_train FROM fiches_livres WHERE nom_client = ? ORDER BY numero_train DESC", (client,))
+    trains = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return trains
+
 def determiner_prochain_numero_livre(client, train):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -118,24 +136,47 @@ st.title("📚 Saisie de Fiche — Devis + Traitements")
 col_saisie, col_visualisation = st.columns([1.2, 0.8])
 liste_couleurs = charger_couleurs()
 
+# Récupération des données existantes pour les listes déroulantes
+liste_clients_existants = lister_tous_les_clients()
+
 with col_saisie:
     st.header("📋 Saisie de la fiche")
+    
+    # --- SECTION 1 : CLÉS D'ENREGISTREMENT ---
     st.subheader("1. Clés d'enregistrement")
-    nom_client = st.text_input("Client", placeholder="Ex: Bibliothèque de Périgueux", key="input_client")
-    numero_train = st.text_input("N° du train", placeholder="Ex: T2026-07", key="input_train")
+    
+    # --- GESTION DU CLIENT ---
+    creer_nouveau_client = st.checkbox("➕ Créer un **nouveau** client", value=len(liste_clients_existants) == 0)
+    
+    if creer_nouveau_client:
+        nom_client = st.text_input("Nom du nouveau client", placeholder="Ex: Bibliothèque de Périgueux").strip()
+    else:
+        nom_client = st.selectbox("Sélectionner le client", options=liste_clients_existants)
 
+    # --- GESTION DU TRAIN ---
+    nom_client_valide = nom_client if nom_client else ""
+    liste_trains_existants = lister_les_trains_du_client(nom_client_valide) if nom_client_valide else []
+    
+    creer_nouveau_train = st.checkbox("➕ Créer un **nouveau** train pour ce client", value=len(liste_trains_existants) == 0)
+    
+    if creer_nouveau_train:
+        numero_train = st.text_input("N° du nouveau train", placeholder="Ex: T2026-07").strip()
+    else:
+        numero_train = st.selectbox("Sélectionner le train", options=liste_trains_existants)
+
+    # --- CALCUL DU NUMÉRO DE LIVRE ---
     num_livre_en_cours = 1
     donnees_edition = None
 
-    if "livre_selectionne" in st.session_state and nom_client.strip() and numero_train.strip():
+    if "livre_selectionne" in st.session_state and nom_client_valide and numero_train:
         num_livre_en_cours = st.session_state.livre_selectionne
-        donnees_edition = recuperer_livre_specifique(nom_client.strip(), numero_train.strip(), num_livre_en_cours)
+        donnees_edition = recuperer_livre_specifique(nom_client_valide, numero_train, num_livre_en_cours)
         st.warning(f"🔄 Mode Modification : Vous éditez actuellement le Livre N° {num_livre_en_cours}")
         if st.button("❌ Annuler la modification (Revenir au livre suivant)"):
             del st.session_state.livre_selectionne
             st.rerun()
-    elif nom_client.strip() and numero_train.strip():
-        num_livre_en_cours = determiner_prochain_numero_livre(nom_client.strip(), numero_train.strip())
+    elif nom_client_valide and numero_train:
+        num_livre_en_cours = determiner_prochain_numero_livre(nom_client_valide, numero_train)
         st.info(f"✨ Nouveau Livre : Numéro attribué automatiquement : **{num_livre_en_cours}**")
 
     # --- FORMULAIRE ---
@@ -240,28 +281,23 @@ with col_saisie:
     st.write("---")
     st.subheader("7. Pièce de titre & Suppléments")
     
-    # Zone de saisie globale pour la hauteur maquette (toujours accessible)
-    valeur_maquette_defaut = int(donnees_edition["hauteur_maquette"]) if donnees_edition else (hauteur + 5)
-    
-    c_maq, _ = st.columns([1, 2])
-    with c_maq:
-        hauteur_maquette = st.number_input("Hauteur maquette (mm)", min_value=0, value=valeur_maquette_defaut, step=1)
-    
-    st.write("")
     val_c_piece = bool(donnees_edition["cocher_piece_titre"]) if donnees_edition else False
     cocher_piece_titre = st.checkbox("**Activer une pièce de titre**", value=val_c_piece)
 
     couleur_pieces_toile = "N/A"; marquage_pieces = "N/A"
     supplement_1 = ""; supplement_2 = ""; supplement_3 = ""; supplement_4 = ""
+    valeur_maquette_defaut = int(donnees_edition["hauteur_maquette"]) if donnees_edition else (hauteur + 5)
 
     if cocher_piece_titre:
-        c_p1, c_p2 = st.columns(2)
+        c_p1, c_p2, c_p3 = st.columns(3)
         idx_c_piece = liste_couleurs.index(donnees_edition["couleur_pieces_toile"]) if donnees_edition and donnees_edition["couleur_pieces_toile"] in liste_couleurs else 0
         with c_p1: couleur_pieces_toile = st.selectbox("Couleur de la pièce de titre", options=liste_couleurs, index=idx_c_piece)
         
         list_mp = ["OR", "ARGENT", "BLANC", "NOIR"]
         idx_mp = list_mp.index(donnees_edition["marquage_pieces"]) if donnees_edition and donnees_edition["marquage_pieces"] in list_mp else 0
         with c_p2: marquage_pieces = st.selectbox("Couleur du marquage de la pièce", list_mp, index=idx_mp)
+            
+        with c_p3: hauteur_maquette = st.number_input("Hauteur maquette (mm)", min_value=0, value=valeur_maquette_defaut, step=1)
             
         st.markdown("**Zones de saisie libre (Suppléments) :**")
         cs1, cs2 = st.columns(2)
@@ -271,6 +307,8 @@ with col_saisie:
         with cs2:
             supplement_3 = st.text_input("Supplément 3", value=donnees_edition["supplement_3"] if donnees_edition else "")
             supplement_4 = st.text_input("Supplément 4", value=donnees_edition["supplement_4"] if donnees_edition else "")
+    else:
+        hauteur_maquette = valeur_maquette_defaut
 
     # Bouton de validation
     st.write("---")
@@ -278,11 +316,11 @@ with col_saisie:
     bouton_valider = st.button(label_bouton)
 
     if bouton_valider:
-        if nom_client.strip() == "" or numero_train.strip() == "":
-            st.error("Le nom du client et le numéro de train sont obligatoires.")
+        if not nom_client_valide or not numero_train:
+            st.error("Le choix ou la saisie du client et du numéro de train sont obligatoires.")
         else:
             donnees_fiche = {
-                "nom_client": nom_client.strip(), "numero_train": numero_train.strip(), "numero_livre": num_livre_en_cours,
+                "nom_client": nom_client_valide, "numero_train": numero_train, "numero_livre": num_livre_en_cours,
                 "nature_doc": nature_doc, "text_doc": text_doc, "option_autre": option_autre,
                 "repro_scanne": repro_scanne, "repro_report": repro_report,
                 "hauteur": hauteur, "largeur": largeur, "epaisseur": epaisseur, "ne_pas_rogner": ne_pas_rogner,
@@ -302,13 +340,13 @@ with col_saisie:
                 del st.session_state.livre_selectionne
             st.rerun()
 
-# --- COLONNE DE DROITE ---
+# --- COLONNE DE DROITE (SUIVI & SELECTION) ---
 with col_visualisation:
     st.header("📊 Suivi en direct du Train")
     
-    if nom_client.strip() and numero_train.strip():
-        st.subheader(f"Client : {nom_client.strip()} | Train : {numero_train.strip()}")
-        livres_train = recuperer_livres_du_train(nom_client.strip(), numero_train.strip())
+    if nom_client_valide and numero_train:
+        st.subheader(f"Client : {nom_client_valide} | Train : {numero_train}")
+        livres_train = recuperer_livres_du_train(nom_client_valide, numero_train)
         
         if livres_train:
             st.markdown("💡 *Cliquez sur une ligne du tableau pour charger et modifier le livre correspondant.*")
@@ -335,4 +373,4 @@ with col_visualisation:
         else:
             st.info("Aucun livre créé pour le moment pour ce couple Client/Train.")
     else:
-        st.info("Renseignez un client et un numéro de train pour afficher son tableau.")
+        st.info("Sélectionnez ou créez un client et un train pour afficher le tableau de suivi.")

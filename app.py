@@ -60,7 +60,6 @@ def enregistrer_ou_mettre_a_jour_livre(donnees):
     conn.close()
 
 def determiner_prochain_numero_livre(client, train):
-    """Trouve le prochain numéro de livre disponible pour un train donné."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT MAX(numero_livre) FROM fiches_livres WHERE nom_client = ? AND numero_train = ?", (client, train))
@@ -69,7 +68,6 @@ def determiner_prochain_numero_livre(client, train):
     return (max_num + 1) if max_num is not None else 1
 
 def recuperer_livre_specifique(client, train, num_livre):
-    """Récupère l'ensemble des données d'un livre précis pour modification."""
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -120,7 +118,6 @@ st.title("📚 Saisie de Fiche — Devis + Traitements")
 col_saisie, col_visualisation = st.columns([1.2, 0.8])
 liste_couleurs = charger_couleurs()
 
-# --- GESTION DE LA SÉLECTION ET DES ENREGISTREMENTS ---
 with col_saisie:
     st.header("📋 Saisie de la fiche")
     st.subheader("1. Clés d'enregistrement")
@@ -190,7 +187,6 @@ with col_saisie:
     idx_cou = list_cou.index(donnees_edition["type_couture"]) if donnees_edition and donnees_edition["type_couture"] in list_cou else 0
     with c_trt3: type_couture = st.selectbox("Type de couture", list_cou, index=idx_cou)
 
-    # Gestion de l'affichage conditionnel pour le type de couture "Cahier manuel"
     agraphes = False
     nombre_cahiers = 0
     if type_couture == "Cahier manuel":
@@ -213,7 +209,6 @@ with col_saisie:
         with c_tit1: titrage_sens = st.radio("Sens du titrage", ["Long", "Travers"], horizontal=True, index=idx_sens)
         with c_tit2: lignes_sup = st.number_input("Lignes supplémentaires (Nbre)", min_value=0, value=int(donnees_edition["lignes_sup"]) if donnees_edition else 0, step=1)
         
-        # Table de marquage mise à jour : OR, ARGENT, BLANC, NOIR
         list_marq = ["OR", "ARGENT", "BLANC", "NOIR"]
         idx_marq = list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0
         with c_tit3: titrage_couleur = st.selectbox("Couleur du marquage (Caractères)", list_marq, index=idx_marq)
@@ -241,28 +236,33 @@ with col_saisie:
                 st.success("Couleur ajoutée au catalogue !")
                 st.rerun()
 
-    # --- SECTION 7 : OPTION PIÈCE DE TITRE ---
+    # --- SECTION 7 : OPTION PIÈCE DE TITRE & SUPPLÉMENTS ---
     st.write("---")
     st.subheader("7. Pièce de titre & Suppléments")
+    
+    # Zone de saisie globale pour la hauteur maquette (toujours accessible)
+    valeur_maquette_defaut = int(donnees_edition["hauteur_maquette"]) if donnees_edition else (hauteur + 5)
+    
+    c_maq, _ = st.columns([1, 2])
+    with c_maq:
+        hauteur_maquette = st.number_input("Hauteur maquette (mm)", min_value=0, value=valeur_maquette_defaut, step=1)
+    
+    st.write("")
     val_c_piece = bool(donnees_edition["cocher_piece_titre"]) if donnees_edition else False
     cocher_piece_titre = st.checkbox("**Activer une pièce de titre**", value=val_c_piece)
 
     couleur_pieces_toile = "N/A"; marquage_pieces = "N/A"
     supplement_1 = ""; supplement_2 = ""; supplement_3 = ""; supplement_4 = ""
-    hauteur_maquette = hauteur + 5
 
     if cocher_piece_titre:
         c_p1, c_p2 = st.columns(2)
         idx_c_piece = liste_couleurs.index(donnees_edition["couleur_pieces_toile"]) if donnees_edition and donnees_edition["couleur_pieces_toile"] in liste_couleurs else 0
         with c_p1: couleur_pieces_toile = st.selectbox("Couleur de la pièce de titre", options=liste_couleurs, index=idx_c_piece)
         
-        # Utilisation de la même table de marquage mise à jour pour la pièce
         list_mp = ["OR", "ARGENT", "BLANC", "NOIR"]
         idx_mp = list_mp.index(donnees_edition["marquage_pieces"]) if donnees_edition and donnees_edition["marquage_pieces"] in list_mp else 0
         with c_p2: marquage_pieces = st.selectbox("Couleur du marquage de la pièce", list_mp, index=idx_mp)
             
-        st.info(f"📏 **Hauteur de maquette** : {hauteur_maquette} mm (H + 5 mm)")
-        
         st.markdown("**Zones de saisie libre (Suppléments) :**")
         cs1, cs2 = st.columns(2)
         with cs1:

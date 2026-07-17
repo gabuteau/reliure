@@ -3,7 +3,7 @@ import sqlite3
 import pandas as pd
 
 # --- INITIALISATION DE LA BASE DE DONNÉES ---
-DB_FILE = "base_reliure2.db"
+DB_FILE = "base_reliure3.db"
 
 def initialiser_bdd():
     conn = sqlite3.connect(DB_FILE)
@@ -27,16 +27,13 @@ def initialiser_bdd():
             type_couture TEXT,
             agraphes BOOLEAN,
             nombre_cahiers INTEGER,
-            -- Titrage principal
             sans_titrage BOOLEAN,
             titrage_sens TEXT,
             lignes_sup INTEGER,
             titrage_couleur TEXT,
             police TEXT,
-            -- Habillage
             type_toile TEXT,
             couleur TEXT,
-            -- Option Pièce de titre (Après Habillage)
             cocher_piece_titre BOOLEAN,
             couleur_pieces_toile TEXT,
             marquage_pieces TEXT,
@@ -48,11 +45,7 @@ def initialiser_bdd():
             PRIMARY KEY (nom_client, numero_train, numero_livre) ON CONFLICT REPLACE
         )
     """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS couleurs_toile (
-            nom_couleur TEXT PRIMARY KEY
-        )
-    """)
+    cursor.execute("CREATE TABLE IF NOT EXISTS couleurs_toile (nom_couleur TEXT PRIMARY KEY)")
     conn.commit()
     conn.close()
 
@@ -66,13 +59,24 @@ def enregistrer_ou_mettre_a_jour_livre(donnees):
     conn.commit()
     conn.close()
 
-def compter_livres_du_train(client, train):
+def determiner_prochain_numero_livre(client, train):
+    """Trouve le prochain numéro de livre disponible pour un train donné."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM fiches_livres WHERE nom_client = ? AND numero_train = ?", (client, train))
-    total = cursor.fetchone()[0]
+    cursor.execute("SELECT MAX(numero_livre) FROM fiches_livres WHERE nom_client = ? AND numero_train = ?", (client, train))
+    max_num = cursor.fetchone()[0]
     conn.close()
-    return total
+    return (max_num + 1) if max_num is not None else 1
+
+def recuperer_livre_specifique(client, train, num_livre):
+    """Récupère l'ensemble des données d'un livre précis pour modification."""
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM fiches_livres WHERE nom_client = ? AND numero_train = ? AND numero_livre = ?", (client, train, num_livre))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 def recuperer_livres_du_train(client, train):
     conn = sqlite3.connect(DB_FILE)
@@ -105,7 +109,7 @@ def charger_couleurs():
     cursor.execute("SELECT nom_couleur FROM couleurs_toile ORDER BY nom_couleur ASC")
     couleurs_perso = [row[0] for row in cursor.fetchall()]
     conn.close()
-    return sorted(list(set(couleurs_base + couleurs_perso)))
+    return sorted(list(set(couleurs_base + colours_perso)))
 
 initialiser_bdd()
 
@@ -116,136 +120,156 @@ st.title("📚 Saisie de Fiche — Devis + Traitements")
 col_saisie, col_visualisation = st.columns([1.2, 0.8])
 liste_couleurs = charger_couleurs()
 
+# --- GESTION DE LA SÉLECTION ET DES ENREGISTREMENTS ---
 with col_saisie:
     st.header("📋 Saisie de la fiche")
-    
-    # --- SECTION 1 : ENTÊTE ---
     st.subheader("1. Clés d'enregistrement")
-    nom_client = st.text_input("Client", placeholder="Ex: Bibliothèque de Périgueux")
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        numero_train = st.text_input("N° du train", placeholder="Ex: T2026-07")
-    with c2:
-        numero_livre = st.number_input("N° du livre", min_value=1, value=1, step=1)
+    nom_client = st.text_input("Client", placeholder="Ex: Bibliothèque de Périgueux", key="input_client")
+    numero_train = st.text_input("N° du train", placeholder="Ex: T2026-07", key="input_train")
 
-    if nom_client.strip() and numero_train.strip():
-        nombre_total_actuel = compter_livres_du_train(nom_client.strip(), numero_train.strip())
-        st.metric(label="Nombre de livres actuellement enregistrés dans ce train", value=nombre_total_actuel)
+    # Calcul automatique ou récupération du numéro de livre sélectionné
+    num_livre_en_cours = 1
+    donnees_edition = None
 
-    # --- SECTION 2 : NATURE ET ÉTAT ---
+    # Variables d'état pour la modification
+    if "livre_selectionne" in st.session_state and nom_client.strip() and numero_train.strip():
+        num_livre_en_cours = st.session_state.livre_selectionne
+        donnees_edition = recuperer_livre_specifique(nom_client.strip(), numero_train.strip(), num_livre_en_cours)
+        st.warning(f"🔄 Mode Modification : Vous éditez actuellement le Livre N° {num_livre_en_cours}")
+        if st.button("❌ Annuler la modification (Revenir au livre suivant)"):
+            del st.session_state.livre_selectionne
+            st.rerun()
+    elif nom_client.strip() and numero_train.strip():
+        num_livre_en_cours = determiner_prochain_numero_livre(nom_client.strip(), numero_train.strip())
+        st.info(f"✨ Nouveau Livre : Numéro attribué automatiquement : **{num_livre_en_cours}**")
+
+    # --- FORMULAIRE AVEC VALEURS PAR DÉFAUT DYNAMIQUES (SI ÉDITION) ---
     st.write("---")
     st.subheader("2. Nature et Finition du document")
-    nature_doc = st.radio("**Sélectionnez la nature du document :**", ["Monographie (Mono)", "Périodique (Pério)"], horizontal=True)
-    etat_doc = st.radio("**Sélectionnez l'état :**", ["Neuf", "Usagé"], horizontal=True)
+    
+    idx_nature = 0 if donnees_edition and donnees_edition["nature_doc"] == "Monographie (Mono)" else (1 if donnees_edition and donnees_edition["nature_doc"] == "Périodique (Pério)" else 0)
+    nature_doc = st.radio("**Sélectionnez la nature du document :**", ["Monographie (Mono)", "Périodique (Pério)"], horizontal=True, index=idx_nature)
+    
+    idx_etat = 0 if donnees_edition and donnees_edition["etat_doc"] == "Neuf" else (1 if donnees_edition and donnees_edition["etat_doc"] == "Usagé" else 0)
+    etat_doc = st.radio("**Sélectionnez l'état :**", ["Neuf", "Usagé"], horizontal=True, index=idx_etat)
 
-    cocher_autre = st.checkbox("Autre (Matières spécifiques)")
+    val_autre = True if donnees_edition and donnees_edition["option_autre"] != "N/A" else False
+    cocher_autre = st.checkbox("Autre (Matières spécifiques)", value=val_autre)
     option_autre = "N/A"
     if cocher_autre:
-        option_autre = st.radio("Finition spécifique :", ["Cuir", "1/2 cuir", "1/2 toile"], horizontal=True)
+        idx_opt = ["Cuir", "1/2 cuir", "1/2 toile"].index(donnees_edition["option_autre"]) if donnees_edition and donnees_edition["option_autre"] in ["Cuir", "1/2 cuir", "1/2 toile"] else 0
+        option_autre = st.radio("Finition spécifique :", ["Cuir", "1/2 cuir", "1/2 toile"], horizontal=True, index=idx_opt)
 
     st.markdown("**Reprographie :**")
+    val_scanne = bool(donnees_edition["repro_scanne"]) if donnees_edition else False
+    val_report = bool(donnees_edition["repro_report"]) if donnees_edition else False
     col_scanne, col_report, _ = st.columns([1, 1, 3])
-    with col_scanne: repro_scanne = st.checkbox("Scannée", value=False)
-    with col_report: repro_report = st.checkbox("Report", value=False)
+    with col_scanne: repro_scanne = st.checkbox("Scannée", value=val_scanne)
+    with col_report: repro_report = st.checkbox("Report", value=val_report)
 
     # --- SECTION 3 : DIMENSIONS ---
     st.write("---")
     st.subheader("3. Désignation format")
     c_dim1, c_dim2, c_dim3, c_dim4 = st.columns(4)
-    with c_dim1: hauteur = st.number_input("Hauteur (mm)", min_value=0, value=220, step=1)
-    with c_dim2: largeur = st.number_input("Largeur (mm)", min_value=0, value=160, step=1)
-    with c_dim3: epaisseur = st.number_input("Épaisseur (mm)", min_value=0, value=20, step=1)
-    with c_dim4: ne_pas_rogner = st.checkbox("Ne pas rogner", value=False)
+    with c_dim1: hauteur = st.number_input("Hauteur (mm)", min_value=0, value=int(donnees_edition["hauteur"]) if donnees_edition else 220, step=1)
+    with c_dim2: largeur = st.number_input("Largeur (mm)", min_value=0, value=int(donnees_edition["largeur"]) if donnees_edition else 160, step=1)
+    with c_dim3: epaisseur = st.number_input("Épaisseur (mm)", min_value=0, value=int(donnees_edition["epaisseur"]) if donnees_edition else 20, step=1)
+    with c_dim4: ne_pas_rogner = st.checkbox("Ne pas rogner", value=bool(donnees_edition["ne_pas_rogner"]) if donnees_edition else False)
 
     # --- SECTION 4 : TRAITEMENTS & RELIURE ---
     st.subheader("4. Traitements & Reliure")
     c_trt1, c_trt2, c_trt3 = st.columns(3)
-    with c_trt1: traitement = st.selectbox("Traitement de structure", ["T1", "T2", "T3", "T4", "T5", "T6"])
-    with c_trt2: type_reliure = st.selectbox("Type de reliure", ["Bradel", "Emboîtage", "Passure en carton"])
-    with c_trt3: type_couture = st.selectbox("Type de couture", ["Cahiers machine", "Surjeté", "Cahier manuel"])
+    
+    list_trt = ["T1", "T2", "T3", "T4", "T5", "T6"]
+    idx_trt = list_trt.index(donnees_edition["traitement"]) if donnees_edition and donnees_edition["traitement"] in list_trt else 0
+    with c_trt1: traitement = st.selectbox("Traitement de structure", list_trt, index=idx_trt)
+    
+    list_rel = ["Bradel", "Emboîtage", "Passure en carton"]
+    idx_rel = list_rel.index(donnees_edition["type_reliure"]) if donnees_edition and donnees_edition["type_reliure"] in list_rel else 0
+    with c_trt2: type_reliure = st.selectbox("Type de reliure", list_rel, index=idx_rel)
+    
+    list_cou = ["Cahiers machine", "Surjeté", "Cahier manuel"]
+    idx_cou = list_cou.index(donnees_edition["type_couture"]) if donnees_edition and donnees_edition["type_couture"] in list_cou else 0
+    with c_trt3: type_couture = st.selectbox("Type de couture", list_cou, index=idx_cou)
 
     c_cah1, c_cah2 = st.columns(2)
-    with c_cah1: agraphes = st.checkbox("Présence d'agraphes", value=False)
-    with c_cah2: nombre_cahiers = st.number_input("Nombre de cahiers", min_value=0, value=0, step=1)
+    with c_cah1: agraphes = st.checkbox("Présence d'agraphes", value=bool(donnees_edition["agraphes"]) if donnees_edition else False)
+    with c_cah2: nombre_cahiers = st.number_input("Nombre de cahiers", min_value=0, value=int(donnees_edition["nombre_cahiers"]) if donnees_edition else 0, step=1)
 
     # --- SECTION 5 : TITRAGE ---
     st.write("---")
     st.subheader("5. Spécifications du titrage")
-    sans_titrage = st.checkbox("**Pas de titrage (Masquer la saisie)**", value=False)
+    val_sans_titrage = bool(donnees_edition["sans_titrage"]) if donnees_edition else False
+    sans_titrage = st.checkbox("**Pas de titrage (Masquer la saisie)**", value=val_sans_titrage)
 
-    titrage_sens = "N/A"
-    lignes_sup = 0
-    titrage_couleur = "N/A"
-    police = "N/A"
+    titrage_sens = "N/A"; lignes_sup = 0; titrage_couleur = "N/A"; police = "N/A"
 
     if not sans_titrage:
         c_tit1, c_tit2, c_tit3, c_tit4 = st.columns(4)
-        with c_tit1: titrage_sens = st.radio("Sens du titrage", ["Long", "Travers"], horizontal=True)
-        with c_tit2: lignes_sup = st.number_input("Lignes supplémentaires (Nbre)", min_value=0, value=0, step=1)
-        with c_tit3: titrage_couleur = st.selectbox("Couleur du marquage (Caractères)", ["OR", "Noir", "Blanc", "Autre"])
-        with c_tit4: police = st.radio("Police de caractère", ["Elzévir", "Baskerville"], horizontal=True)
+        idx_sens = 0 if donnees_edition and donnees_edition["titrage_sens"] == "Long" else (1 if donnees_edition and donnees_edition["titrage_sens"] == "Travers" else 0)
+        with c_tit1: titrage_sens = st.radio("Sens du titrage", ["Long", "Travers"], horizontal=True, index=idx_sens)
+        with c_tit2: lignes_sup = st.number_input("Lignes supplémentaires (Nbre)", min_value=0, value=int(donnees_edition["lignes_sup"]) if donnees_edition else 0, step=1)
+        
+        list_marq = ["OR", "Noir", "Blanc", "Autre"]
+        idx_marq = list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0
+        with c_tit3: titrage_couleur = st.selectbox("Couleur du marquage (Caractères)", list_marq, index=idx_marq)
+        
+        idx_pol = 0 if donnees_edition and donnees_edition["police"] == "Elzévir" else (1 if donnees_edition and donnees_edition["police"] == "Baskerville" else 0)
+        with c_tit4: police = st.radio("Police de caractère", ["Elzévir", "Baskerville"], horizontal=True, index=idx_pol)
 
     # --- SECTION 6 : HABILLAGE ---
     st.write("---")
     st.subheader("6. Habillage")
     c_toi1, c_toi2 = st.columns(2)
-    with c_toi1: 
-        type_toile = st.selectbox("Type de toile", ["Buckram", "Fantaisie", "Autre"])
-    with c_toi2: 
-        couleur = st.selectbox("Couleur de la toile", options=liste_couleurs)
+    
+    list_toile = ["Buckram", "Fantaisie", "Autre"]
+    idx_toile = list_toile.index(donnees_edition["type_toile"]) if donnees_edition and donnees_edition["type_toile"] in list_toile else 0
+    with c_toi1: type_toile = st.selectbox("Type de toile", list_toile, index=idx_toile)
+    
+    idx_c_toile = liste_couleurs.index(donnees_edition["couleur"]) if donnees_edition and donnees_edition["couleur"] in liste_couleurs else 0
+    with c_toi2: couleur = st.selectbox("Couleur de la toile", options=liste_couleurs, index=idx_c_toile)
 
-    with st.expander("➕ Ajouter une nouvelle couleur au catalogue commun"):
-        nouvelle_couleur_saisie = st.text_input("Nom de la couleur").strip()
-        if st.button("Enregistrer la couleur"):
-            if nouvelle_couleur_saisie:
-                ajouter_couleur_bdd(nouvelle_couleur_saisie.capitalize())
-                st.success(f"Couleur ajoutée !")
-                st.rerun()
-
-    # --- SECTION 7 : OPTION PIÈCE DE TITRE EN CASCADE ---
+    # --- SECTION 7 : OPTION PIÈCE DE TITRE ---
     st.write("---")
     st.subheader("7. Pièce de titre & Suppléments")
-    cocher_piece_titre = st.checkbox("**Activer une pièce de titre**", value=False)
+    val_c_piece = bool(donnees_edition["cocher_piece_titre"]) if donnees_edition else False
+    cocher_piece_titre = st.checkbox("**Activer une pièce de titre**", value=val_c_piece)
 
-    # Valeurs par défaut si décoché
-    couleur_pieces_toile = "N/A"
-    marquage_pieces = "N/A"
-    supplement_1 = ""
-    supplement_2 = ""
-    supplement_3 = ""
-    supplement_4 = ""
-    hauteur_maquette = hauteur + 5  # Calculé de base
+    couleur_pieces_toile = "N/A"; marquage_pieces = "N/A"
+    supplement_1 = ""; supplement_2 = ""; supplement_3 = ""; supplement_4 = ""
+    hauteur_maquette = hauteur + 5
 
-    # Si coché, on débloque toute la suite demandée
     if cocher_piece_titre:
         c_p1, c_p2 = st.columns(2)
-        with c_p1:
-            couleur_pieces_toile = st.selectbox("Couleur de la pièce de titre (Table des toiles)", options=liste_couleurs)
-        with c_p2:
-            marquage_pieces = st.selectbox("Couleur du marquage de la pièce", ["OR", "Noir", "Blanc", "Autre"])
+        idx_c_piece = liste_couleurs.index(donnees_edition["couleur_pieces_toile"]) if donnees_edition and donnees_edition["couleur_pieces_toile"] in liste_couleurs else 0
+        with c_p1: couleur_pieces_toile = st.selectbox("Couleur de la pièce de titre", options=liste_couleurs, index=idx_c_piece)
+        
+        list_mp = ["OR", "Noir", "Blanc", "Autre"]
+        idx_mp = list_mp.index(donnees_edition["marquage_pieces"]) if donnees_edition and donnees_edition["marquage_pieces"] in list_mp else 0
+        with c_p2: marquage_pieces = st.selectbox("Couleur du marquage de la pièce", list_mp, index=idx_mp)
             
-        st.info(f"📏 **Hauteur de maquette** : {hauteur_maquette} mm (H + 5 mm)")
+        st.info(f"📏 **Hauteur de maquette** : {haquette_maquette := hauteur + 5} mm (H + 5 mm)")
         
         st.markdown("**Zones de saisie libre (Suppléments) :**")
         cs1, cs2 = st.columns(2)
         with cs1:
-            supplement_1 = st.text_input("Supplément 1")
-            supplement_2 = st.text_input("Supplément 2")
+            supplement_1 = st.text_input("Supplément 1", value=donnees_edition["supplement_1"] if donnees_edition else "")
+            supplement_2 = st.text_input("Supplément 2", value=donnees_edition["supplement_2"] if donnees_edition else "")
         with cs2:
-            supplement_3 = st.text_input("Supplément 3")
-            supplement_4 = st.text_input("Supplément 4")
+            supplement_3 = st.text_input("Supplément 3", value=donnees_edition["supplement_3"] if donnees_edition else "")
+            supplement_4 = st.text_input("Supplément 4", value=donnees_edition["supplement_4"] if donnees_edition else "")
 
-    # Bouton de validation
+    # Bouton de validation unique
     st.write("---")
-    bouton_valider = st.button(f"💾 Valider l'enregistrement [Livre N° {numero_livre}]")
+    label_bouton = f"💾 Enregistrer les modifications du Livre N° {num_livre_en_cours}" if donnees_edition else f"💾 Valider l'enregistrement [Livre N° {num_livre_en_cours}]"
+    bouton_valider = st.button(label_bouton)
 
     if bouton_valider:
         if nom_client.strip() == "" or numero_train.strip() == "":
             st.error("Le nom du client et le numéro de train sont obligatoires.")
         else:
             donnees_fiche = {
-                "nom_client": nom_client.strip(), "numero_train": numero_train.strip(), "numero_livre": numero_livre,
+                "nom_client": nom_client.strip(), "numero_train": numero_train.strip(), "numero_livre": num_livre_en_cours,
                 "nature_doc": nature_doc, "etat_doc": etat_doc, "option_autre": option_autre,
                 "repro_scanne": repro_scanne, "repro_report": repro_report,
                 "hauteur": hauteur, "largeur": largeur, "epaisseur": epaisseur, "ne_pas_rogner": ne_pas_rogner,
@@ -259,11 +283,13 @@ with col_saisie:
                 "supplement_1": supplement_1, "supplement_2": supplement_2, 
                 "supplement_3": supplement_3, "supplement_4": supplement_4
             }
-            
             enregistrer_ou_mettre_a_jour_livre(donnees_fiche)
-            st.success(f"Enregistrement créé/mis à jour avec succès : Livre N°{numero_livre}")
+            st.success("Données enregistrées avec succès !")
+            if "livre_selectionne" in st.session_state:
+                del st.session_state.livre_selectionne
             st.rerun()
 
+# --- COLONNE DE DROITE : SUIVI DU TRAIN ET MODIFICATION PAR SELECTION ---
 with col_visualisation:
     st.header("📊 Suivi en direct du Train")
     
@@ -272,11 +298,29 @@ with col_visualisation:
         livres_train = recuperer_livres_du_train(nom_client.strip(), numero_train.strip())
         
         if livres_train:
+            st.markdown("💡 *Cliquez sur une ligne du tableau pour charger et modifier le livre correspondant.*")
             df_train = pd.DataFrame(
                 livres_train, 
                 columns=["N° Livre", "Nature", "État", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"]
             )
-            st.dataframe(df_train, use_container_width=True, hide_index=True)
+            
+            # Utilisation du tableau interactif avec sélection de ligne (remplace le double-clic)
+            reponse_selection = st.dataframe(
+                df_train, 
+                use_container_width=True, 
+                hide_index=True,
+                selection_mode="single_row",
+                on_select="rerun"
+            )
+            
+            # Détection de la ligne sélectionnée
+            if reponse_selection and "rows" in reponse_selection.get("selection", {}):
+                lignes_selectionnees = reponse_selection["selection"]["rows"]
+                if lignes_selectionnees:
+                    index_ligne = lignes_selectionnees[0]
+                    numero_livre_selectionne = int(df_train.iloc[index_ligne]["N° Livre"])
+                    st.session_state.livre_selectionne = numero_livre_selectionne
+                    st.rerun()
         else:
             st.info("Aucun livre créé pour le moment pour ce couple Client/Train.")
     else:

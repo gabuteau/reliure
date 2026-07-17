@@ -1,6 +1,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
+import matplotlib.pyplot as plt
 from datetime import datetime
 
 # --- INITIALISATION DE LA BASE DE DONNÉES ---
@@ -65,6 +66,17 @@ def initialiser_bdd():
         )
     """)
     cursor.execute("CREATE TABLE IF NOT EXISTS couleurs_toile (nom_couleur TEXT PRIMARY KEY)")
+    
+    # Nouvelle table pour enregistrer le module Titrage Système 3
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS titrage_system3 (
+            nom_client TEXT, numero_train TEXT, numero_livre INTEGER, date_saisie TEXT,
+            toile TEXT, couleur_toile TEXT, piece_titre TEXT, couleur_piece TEXT,
+            titrage_couleur TEXT, police TEXT, caractere TEXT, 
+            lignes_json TEXT,
+            PRIMARY KEY (nom_client, numero_train, numero_livre)
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -146,6 +158,7 @@ def supprimer_client_bdd(nom_client):
     cursor.execute("DELETE FROM tarifs_clients WHERE nom_client = ?", (nom_client,))
     cursor.execute("DELETE FROM fiches_livres WHERE nom_client = ?", (nom_client,))
     cursor.execute("DELETE FROM clients WHERE nom = ?", (nom_client,))
+    cursor.execute("DELETE FROM titrage_system3 WHERE nom_client = ?", (nom_client,))
     conn.commit()
     conn.close()
 
@@ -228,11 +241,148 @@ initialiser_bdd()
 
 # --- CONFIGURATION INTERFACE TABS ---
 st.set_page_config(page_title="Gestion Atelier Reliure", layout="wide")
-tabs = st.tabs(["📚 Saisie & Suivi des Livres", "🏢 Fiches Clients", "🏷️ Grilles Tarifaires Clients"])
+
+# Intégration du 4ème Menu global : "📟 Titrage Système 3"
+tabs = st.tabs(["📚 Saisie & Suivi des Livres", "🏢 Fiches Clients", "🏷️ Grilles Tarifaires Clients", "📟 Titrage Système 3"])
 liste_couleurs = charger_couleurs()
 liste_clients_existants = lister_tous_les_clients()
 
-# --- TAB 3 : Grilles Tarifaires ---
+# --- TAB 4 : NOUVEAU MODULE - TITRAGE SYSTÈME 3 ---
+with tabs[3]:
+    st.header("📟 Module de Composition Spécifique — Titrage Système 3")
+    
+    if not liste_clients_existants:
+        st.warning("⚠️ Créez d'abord un client pour utiliser le module de titrage.")
+    else:
+        # Bloc supérieur de commandes et actions de panier
+        col_cmd1, col_cmd2 = st.columns([1, 1])
+        with col_cmd1:
+            st.button("✔️ Valider pour titrage System 3", use_container_width=True)
+        with col_cmd2:
+            st.button("🛒 Ajouter au panier", key="btn_panier_top", use_container_width=True)
+            
+        st.write("---")
+        
+        col_form_saisie, col_gabarit_visualisation = st.columns([1.1, 0.9])
+        
+        with col_form_saisie:
+            st.subheader("Informations Saisie")
+            
+            c_meta1, c_meta2 = st.columns(2)
+            with c_meta1:
+                t3_client = st.selectbox("Client référent", options=liste_clients_existants, key="t3_client_sb")
+                t3_trains = lister_les_trains_du_client(t3_client)
+                t3_train_sel = st.selectbox("N° de train", options=["-- Choisir --"] + t3_trains, key="t3_train_sb")
+            with c_meta2:
+                t3_date = st.date_input("Date d'atelier", value=datetime.now())
+                t3_livre_num = st.number_input("N° du livre en cours", min_value=1, value=1, step=1)
+                
+            st.write("")
+            c_mat1, c_meta_dim = st.columns(2)
+            with c_mat1:
+                st.markdown("**Caractéristiques matières :**")
+                t3_toile = st.text_input("Toile d'habillage", value="Buckram")
+                t3_couleur_toile = st.selectbox("Couleur de la toile", options=liste_couleurs, key="t3_c_toile")
+                t3_piece = st.text_input("Pièce de titre (Matière)", value="Cuir")
+                t3_couleur_piece = st.selectbox("Couleur de la pièce", options=liste_couleurs, key="t3_c_piece")
+            with c_meta_dim:
+                st.markdown("**Cotes brutes du livre (mm) :**")
+                t3_larg_brute = st.number_input("Largeur d'atelier", min_value=0, value=160, step=1)
+                t3_haut_brute = st.number_input("Hauteur d'atelier", min_value=0, value=220, step=1)
+                st.info(f"📐 **Marges calculées :**\n- Hauteur Maquette : {t3_haut_brute + 5} mm\n- Largeur Maquette : {t3_larg_brute + 5} mm")
+                
+            st.write("---")
+            st.markdown("**Paramètres Typographiques & Interlignage :**")
+            c_typo1, c_typo2, c_typo3 = st.columns(3)
+            with c_typo1: t3_tit_c = st.selectbox("Titrage Couleur", ["OR", "ARGENT", "BLANC", "NOIR"])
+            with c_typo2: t3_police = st.selectbox("Police d'atelier", ["Elzévir", "Baskerville"])
+            with c_typo3: t3_carac = st.text_input("Caractère (Corps)", value="12pt")
+            
+            st.caption("ℹ️ *Règles appliquées d'interlignage : E 1 et 3 espace H 8mm | E 5 et 6 espace H 11mm*")
+            
+            st.write("")
+            st.markdown("##### 📥 Grille de positionnement des lignes")
+            
+            # Initialisation d'un tableau d'édition par défaut pour simuler le dessin de la maquette
+            if "df_lignes_system3" not in st.session_state:
+                st.session_state.df_lignes_system3 = pd.DataFrame([
+                    {"Hauteur (1-34)": 22, "Titrage": "Livre"},
+                    {"Hauteur (1-34)": 21, "Titrage": "qui"},
+                    {"Hauteur (1-34)": 20, "Titrage": "ce"},
+                    {"Hauteur (1-34)": 19, "Titrage": "construit"},
+                    {"Hauteur (1-34)": 4, "Titrage": "cote"},
+                    {"Hauteur (1-34)": 3, "Titrage": "griffe"}
+                ])
+                
+            df_edite_lignes = st.data_editor(
+                st.session_state.df_lignes_system3,
+                column_config={
+                    "Hauteur (1-34)": st.column_config.NumberColumn("Hauteur (Repère)", min_value=1, max_value=34, step=1, required=True),
+                    "Titrage": st.column_config.TextColumn("Texte de la ligne", required=True)
+                },
+                num_rows="dynamic",
+                use_container_width=True,
+                key="editor_titrage_s3"
+            )
+            
+            if st.button("💾 Enregistrer la composition technique"):
+                st.session_state.df_lignes_system3 = df_edite_lignes
+                st.success("Composition de titrage mémorisée temporairement pour ce train.")
+
+        # Dessin dynamique du gabarit technique (Colonne droite)
+        with col_gabarit_visualisation:
+            st.subheader("📐 Gabarit de Prévisualisation")
+            
+            fig, ax = plt.subplots(figsize=(5, 9))
+            ax.set_xlim(-2, 10)
+            ax.set_ylim(0, 36)
+            
+            # Dessin de la structure principale du dos de couvrure
+            ax.plot([2, 2], [1, 35], color="black", lw=1.5)
+            ax.plot([6, 6], [1, 35], color="black", lw=1.5)
+            ax.plot([2, 6], [1, 1], color="black", lw=1.5)
+            ax.plot([2, 6], [35, 35], color="black", lw=1.5)
+            
+            # Représentation interne du livre en cours de construction
+            ax.fill_between([2.5, 5.5], 2, 34, color="#fdf6e2", alpha=0.5, hatch="/")
+            ax.rect = plt.Rectangle((2.5, 2), 3, 32, fill=False, edgecolor="#b58900", lw=1, linestyle="--")
+            ax.add_patch(ax.rect)
+            
+            # Tracé de la règle graduée verticale de 1 à 34
+            for h_tick in range(1, 35):
+                ax.text(0.5, h_tick, str(h_tick), va='center', ha='right', fontsize=9, color="#555555")
+                ax.plot([0.7, 1], [h_tick, h_tick], color="gray", lw=0.5)
+                
+            # Tracé de la règle graduée horizontale au pied (0 à 7)
+            for w_tick in range(0, 8):
+                ax.text(2 + (w_tick * 0.5), -0.5, str(w_tick), va='top', ha='center', fontsize=8)
+                ax.plot([2 + (w_tick * 0.5), 2 + (w_tick * 0.5)], [0, 0.5], color="gray", lw=0.5)
+            
+            # Positionnement dynamique du texte sur le gabarit selon la grille éditée à gauche
+            for _, row_data in df_edite_lignes.iterrows():
+                h_pos = row_data["Hauteur (1-34)"]
+                txt = row_data["Titrage"]
+                if pd.notna(h_pos) and txt:
+                    ax.text(4, h_pos, str(txt), va='center', ha='center', 
+                            fontsize=11, weight='bold', color="#111111",
+                            bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8, edgecolor='none'))
+            
+            # Métadonnées d'atelier affichées sur les axes du graphique
+            ax.text(4, 35.5, f"Hauteur Maquette: {t3_haut_brute + 5} mm", va='bottom', ha='center', fontsize=9, style='italic')
+            ax.text(4, -1.8, f"Largeur: {t3_larg_brute + 5} mm", va='top', ha='center', fontsize=9, style='italic')
+            
+            ax.axis('off')
+            st.pyplot(fig)
+            
+            # Boutons de pied de page du module
+            st.write("")
+            c_foot1, c_foot2 = st.columns(2)
+            with c_foot1:
+                st.button("🖨️ Imprimer la fiche de garde", use_container_width=True)
+            with col_form_saisie:
+                st.button("🛒 Ajouter au panier global", key="btn_panier_bottom", use_container_width=True)
+
+# --- TAB 3 : MANAGEMENT DE LA GRILLE DU CLIENT ---
 with tabs[2]:
     st.header("🏷️ Personnalisation des tarifs par Client")
     if not liste_clients_existants:
@@ -297,12 +447,10 @@ with tabs[1]:
                         st.success("Fiche client mise à jour.")
                         st.rerun()
                 
-                # --- CORRECTION DE LA LOGIQUE DE SUPPRESSION DEHORS DU FORMULAIRE ---
                 st.write("---")
                 st.markdown("#### 🚨 Zone de danger")
                 st.error("⚠️ **Attention :** La suppression d'un client est définitive et irréversible. Cela effacera complètement sa fiche d'annuaire, sa grille de tarifs personnalisés ainsi que l'intégralité de ses trains de livres d'atelier.")
                 
-                # Utilisation d'un bouton d'étape Streamlit sans conteneur <form>
                 if f"confirm_delete_{fiche['nom']}" not in st.session_state:
                     st.session_state[f"confirm_delete_{fiche['nom']}"] = False
                 
@@ -317,7 +465,6 @@ with tabs[1]:
                         if st.button("✔️ OUI, CONFIRMER LA SUPPRESSION DÉFINITIVE"):
                             supprimer_client_bdd(fiche["nom"])
                             st.session_state[f"confirm_delete_{fiche['nom']}"] = False
-                            st.toast(f"Client {fiche['nom']} supprimé.")
                             st.rerun()
                     with col_del2:
                         if st.button("🔄 Annuler l'action"):

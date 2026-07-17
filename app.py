@@ -3,7 +3,7 @@ import sqlite3
 import pandas as pd
 
 # --- INITIALISATION DE LA BASE DE DONNÉES ---
-DB_FILE = "base_reliure.db"
+DB_FILE = "base_reliure2.db"
 
 def initialiser_bdd():
     conn = sqlite3.connect(DB_FILE)

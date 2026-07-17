@@ -8,7 +8,7 @@ DB_FILE = "base_reliure_v2.db"
 
 # Grille standard corrigée : le petit chiffre est la largeur, le grand est la hauteur
 TARIFS_STANDARDS = {
-    "Pièce de titre": {"115 x 185 (In 12)": 5.05, "130 x 200 (In 8° écu)": 6.56, "160 x 245 (In 8° raisin)": 7.57, "175 x 270 (In 8° jésus)": 9.08, "245 x 320 (In 4° raisin)": 11.61, "270 x 350 (In 4° jésus)": 14.13, "280 x 440 (Folio carré)": 15.84, "320 x 490 (Folio raisin)": 17.76, "350 x 540 (Folio jésus)": 19.17, "440 x 600 (Grand folio)": 21.19, "Plano A": 22.96, "Plano B": 25.23},
+    "Pièce de titre": {"115 x 185 (In 12)": 5.05, "130 x 200 (In 8° écu)": 6.56, "160 x 245 (In 8° raisin)": 7.57, "175 x 270 (In 8° jésus)": 9.08, "245 x 320 (In 4° raisin)": 11.61, "270 x 350 (In 4° jésus)": 14.13, "280 x 440 (Folio carré)": 15.84, "320 x 490 (Folio raisin)": 17.76, "540 x 350 (Folio jésus)": 19.17, "440 x 600 (Grand folio)": 21.19, "Plano A": 22.96, "Plano B": 25.23},
     "Sous titre": {"115 x 185 (In 12)": 7.01, "130 x 200 (In 8° écu)": 9.11, "160 x 245 (In 8° raisin)": 10.51, "175 x 270 (In 8° jésus)": 12.62, "245 x 320 (In 4° raisin)": 16.12, "270 x 350 (In 4° jésus)": 19.63, "280 x 440 (Folio carré)": 22.01, "320 x 490 (Folio raisin)": 24.67, "350 x 540 (Folio jésus)": 26.63, "440 x 600 (Grand folio)": 29.44, "Plano A": 31.89, "Plano B": 35.05},
     "Titrage main": {"115 x 185 (In 12)": 9.83, "130 x 200 (In 8° écu)": 12.78, "160 x 245 (In 8° raisin)": 14.75, "175 x 270 (In 8° jésus)": 17.70, "245 x 320 (In 4° raisin)": 22.61, "270 x 350 (In 4° jésus)": 27.53, "280 x 440 (Folio carré)": 30.87, "320 x 490 (Folio raisin)": 34.61, "350 x 540 (Folio jésus)": 37.36, "440 x 600 (Grand folio)": 41.29, "Plano A": 44.73, "Plano B": 49.16},
     "Titre caractère latin": {"115 x 185 (In 12)": 9.83, "130 x 200 (In 8° écu)": 12.78, "160 x 245 (In 8° raisin)": 14.75, "175 x 270 (In 8° jésus)": 17.70, "245 x 320 (In 4° raisin)": 22.61, "270 x 350 (In 4° jésus)": 27.53, "280 x 440 (Folio carré)": 30.87, "320 x 490 (Folio raisin)": 34.61, "350 x 540 (Folio jésus)": 37.36, "440 x 600 (Grand folio)": 41.29, "Plano A": 44.73, "Plano B": 49.16},
@@ -33,7 +33,7 @@ TARIFS_STANDARDS = {
     "Désinfection": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 0.00, "175 x 270 (In 8° jésus)": 0.00, "245 x 320 (In 4° raisin)": 0.00, "270 x 350 (In 4° jésus)": 0.00, "280 x 440 (Folio carré)": 0.00, "320 x 490 (Folio raisin)": 0.00, "350 x 540 (Folio jésus)": 0.00, "440 x 600 (Grand folio)": 0.00, "Plano A": 40.71, "Plano B": 40.71},
     "Charnière cuir": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 0.00, "175 x 270 (In 8° jésus)": 0.00, "245 x 320 (In 4° raisin)": 0.00, "270 x 350 (In 4° jésus)": 0.00, "280 x 440 (Folio carré)": 0.00, "320 x 490 (Folio raisin)": 0.00, "350 x 540 (Folio jésus)": 0.00, "440 x 600 (Grand folio)": 0.00, "Plano A": 40.71, "Plano B": 40.71},
     "Enlever agrafes": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 0.00, "175 x 270 (In 8° jésus)": 0.00, "245 x 320 (In 4° raisin)": 0.00, "270 x 350 (In 4° jésus)": 0.00, "280 x 440 (Folio carré)": 3.85, "320 x 490 (Folio raisin)": 4.32, "350 x 540 (Folio jésus)": 4.66, "440 x 600 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13},
-    "Couture manuelle sur rubans": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 1.84, "175 x 270 (In 8° jésus)": 2.21, "245 x 320 (In 4° raisin)": 2.82, "270 x 350 (In 4° jésus)": 3.44, "280 x 440 (Folio carré)": 3.85, "320 x 490 (Folio raisin)": 4.32, "350 x 540 (Folio jésus)": 4.66, "440 x 600 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13}
+    "Couture manuelle sur rubans": {"115 x 185 (In 12)": 0.00, "130 x 200 (In 8° écu)": 0.00, "160 x 245 (In 8° raisin)": 1.84, "175 x 270 (In 8° jésus)": 2.21, "245 x 320 (In 4° raisin)": 2.82, "270 x 350 (In 4° jésus)": 3.44, "280 x 440 (Folio carré)": 3.85, "320 x 490 (Folio raisin)": 4.32, "540 x 350 (Folio jésus)": 4.66, "440 x 600 (Grand folio)": 5.15, "Plano A": 5.58, "Plano B": 6.13}
 }
 
 FORMATS_COLONNES = ["115 x 185 (In 12)", "130 x 200 (In 8° écu)", "160 x 245 (In 8° raisin)", "175 x 270 (In 8° jésus)", "245 x 320 (In 4° raisin)", "270 x 350 (In 4° jésus)", "280 x 440 (Folio carré)", "320 x 490 (Folio raisin)", "350 x 540 (Folio jésus)", "440 x 600 (Grand folio)", "Plano A", "Plano B"]
@@ -143,9 +143,9 @@ def enregistrer_client(nom, adresse, telephone, email, contact, notes):
 def supprimer_client_bdd(nom_client):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM clients WHERE nom = ?", (nom_client,))
-    cursor.execute("DELETE FROM fiches_livres WHERE nom_client = ?", (nom_client,))
     cursor.execute("DELETE FROM tarifs_clients WHERE nom_client = ?", (nom_client,))
+    cursor.execute("DELETE FROM fiches_livres WHERE nom_client = ?", (nom_client,))
+    cursor.execute("DELETE FROM clients WHERE nom = ?", (nom_client,))
     conn.commit()
     conn.close()
 
@@ -203,7 +203,6 @@ def recuperer_livre_specifique(client, train, num_livre):
     conn.close()
     return dict(row) if row else None
 
-# Correction SQL : Largeur (petit chiffre) puis Hauteur (grand chiffre)
 def recuperer_livres_du_train(client, train):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -297,9 +296,12 @@ with tabs[1]:
                         enregistrer_client(fiche["nom"], mod_adresse, "", "", mod_contact, mod_notes)
                         st.success("Fiche client mise à jour.")
                         st.rerun()
+                # --- ZONE DE DANGER METIER ENRICHI ---
                 with st.expander("🚨 Zone de danger"):
-                    if st.button("❌ Supprimer définitivement") and st.checkbox(f"Confirmer la suppression de {fiche['nom']}"):
+                    st.error("⚠️ **Attention :** La suppression d'un client est irréversible. Cela effacera définitivement sa grille tarifaire personnalisée ainsi que l'ensemble de ses trains de livres enregistrés.")
+                    if st.button("❌ Supprimer définitivement") and st.checkbox(f"Confirmer la suppression globale de {fiche['nom']}"):
                         supprimer_client_bdd(fiche["nom"])
+                        st.success(f"Le client {fiche['nom']}, ses tarifs et ses trains ont été intégralement supprimés.")
                         st.rerun()
 
 # --- TAB 1 : SAISIE & SUIVI DES LIVRES ---
@@ -399,7 +401,7 @@ with tabs[0]:
             c_toi1, c_toi2 = st.columns(2)
             list_toile = ["Buckram", "Fantaisie", "Autre"]
             with c_toi1: type_toile = st.selectbox("Type de toile", list_toile, index=list_toile.index(donnees_edition["type_toile"]) if donnees_edition and donnees_edition["type_toile"] in list_toile else 0)
-            with c_toi2: couleur = st.selectbox("Couleur de la toile", options=liste_couleurs, index=liste_couleurs.index(donnees_edition["couleur"]) if donnees_edition and donnees_edition["couleur"] in liste_couleurs else 0)
+            with c_toi2: couleur = st.selectbox("Couleur de la toile", options=liste_couleurs, index=liste_couleurs.index(donnees_edition["couleur"]) if donnees_edition security_check=True and donnees_edition["couleur"] in liste_couleurs else 0)
 
             # --- SECTION 7 : OPTION PIÈCE DE TITRE & SUPPLÉMENTS ---
             st.write("---")
@@ -476,7 +478,6 @@ with tabs[0]:
                 st.subheader(f"Client : {nom_client_valide} | Train : {numero_train}")
                 livres_train = recuperer_livres_du_train(nom_client_valide, numero_train)
                 if livres_train:
-                    # En-têtes et colonnes ordonnés strictement en Largeur puis Hauteur
                     df_train = pd.DataFrame(livres_train, columns=["N° Livre", "Nature", "État", "Largeur", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"])
                     reponse_selection = st.dataframe(df_train, use_container_width=True, hide_index=True, selection_mode="single-row", on_select="rerun")
                     if reponse_selection and "rows" in reponse_selection.get("selection", {}):

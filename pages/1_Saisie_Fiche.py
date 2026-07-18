@@ -30,14 +30,14 @@ def lister_tous_les_clients():
 
 def lister_les_trains_du_client(client):
     supabase = obtenir_client_supabase()
-    reponse = supabase.table("fiches_livres").select("numero_train").eq("nom_client", client).execute()
+    reponse = supabase.table("fiches_livres").select("numero_train").eq("nom_client", client.strip()).execute()
     return sorted(list(set([row["numero_train"] for row in reponse.data])), reverse=True)
 
 def generer_automatiquement_numero_train(client):
     annee_courante = datetime.now().year
     prefixe = f"T{annee_courante}"
     supabase = obtenir_client_supabase()
-    reponse = supabase.table("fiches_livres").select("numero_train").eq("nom_client", client).like("numero_train", f"{prefixe}%").execute()
+    reponse = supabase.table("fiches_livres").select("numero_train").eq("nom_client", client.strip()).like("numero_train", f"{prefixe}%").execute()
     trains = list(set([row["numero_train"] for row in reponse.data]))
     if trains:
         trains.sort(reverse=True)
@@ -50,21 +50,24 @@ def generer_automatiquement_numero_train(client):
 
 def determiner_prochain_numero_livre(client, train):
     supabase = obtenir_client_supabase()
-    reponse = supabase.table("fiches_livres").select("numero_livre").eq("nom_client", client).eq("numero_train", train).execute()
-    nums = [row["numero_livre"] for row in reponse.data]
+    # Nettoyage des chaînes pour éviter les décalages de filtres
+    reponse = supabase.table("fiches_livres").select("numero_livre").eq("nom_client", client.strip()).eq("numero_train", train.strip()).execute()
+    if not reponse.data:
+        return 1
+    nums = [int(row["numero_livre"]) for row in reponse.data if row["numero_livre"] is not None]
     return (max(nums) + 1) if nums else 1
 
 def recuperer_livre_specifique(client, train, num_livre):
     supabase = obtenir_client_supabase()
-    reponse = supabase.table("fiches_livres").select("*").eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
+    reponse = supabase.table("fiches_livres").select("*").eq("nom_client", client.strip()).eq("numero_train", train.strip()).eq("numero_livre", num_livre).execute()
     return reponse.data[0] if reponse.data else None
 
 def supprimer_livre_specifique(client, train, num_livre):
     supabase = obtenir_client_supabase()
     try:
-        try: supabase.table("titrage_system3").delete().eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
+        try: supabase.table("titrage_system3").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).eq("numero_livre", num_livre).execute()
         except Exception: pass
-        supabase.table("fiches_livres").delete().eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
+        supabase.table("fiches_livres").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).eq("numero_livre", num_livre).execute()
         return True
     except Exception as e:
         st.error(f"Erreur lors de la suppression : {e}")
@@ -72,7 +75,7 @@ def supprimer_livre_specifique(client, train, num_livre):
 
 def recuperer_livres_du_train(client, train):
     supabase = obtenir_client_supabase()
-    reponse = supabase.table("fiches_livres").select("numero_livre, nature_doc, text_doc, largeur, hauteur, type_reliure, couleur, cocher_piece_titre, couleur_pieces_toile").eq("nom_client", client).eq("numero_train", train).order("numero_livre").execute()
+    reponse = supabase.table("fiches_livres").select("numero_livre, nature_doc, text_doc, largeur, hauteur, type_reliure, couleur, cocher_piece_titre, couleur_pieces_toile").eq("nom_client", client.strip()).eq("numero_train", train.strip()).order("numero_livre").execute()
     
     donnees_formatees = []
     for r in reponse.data:
@@ -269,7 +272,7 @@ else:
             st.write("---")
             if st.button("💾 Valider l'enregistrement", type="primary", use_container_width=True):
                 donnees_fiche = {
-                    "nom_client": nom_client_valide, "numero_train": numero_train, "numero_livre": num_livre_en_cours,
+                    "nom_client": nom_client_valide.strip(), "numero_train": numero_train.strip(), "numero_livre": num_livre_en_cours,
                     "nature_doc": nature_doc, "text_doc": text_doc, "option_autre": option_autre, "repro_scanne": repro_scanne, "repro_report": repro_report,
                     "hauteur": hauteur, "largeur": largeur, "epaisseur": epaisseur, "ne_pas_rogner": ne_pas_rogner, "traitement": traitement, "type_reliure": type_reliure, "type_couture": type_couture,
                     "agraphes": agraphes, "nombre_cahiers": nombre_cahiers, "sans_titrage": sans_titrage, "titrage_sens": titrage_sens, "lignes_sup": lignes_sup, "titrage_couleur": titrage_couleur, "police": police, "type_toile": type_toile, "couleur": couleur,
@@ -292,7 +295,6 @@ else:
             if livres_train:
                 df_train = pd.DataFrame(livres_train, columns=["N° Livre", "Nature", "État", "Largeur", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"])
                 
-                # Le tableau redevient cochable (une seule ligne à la fois)
                 reponse_tableau = st.dataframe(
                     df_train, 
                     use_container_width=True, 
@@ -301,12 +303,10 @@ else:
                     on_select="rerun"
                 )
                 
-                # Détection sécurisée de la ligne cochée par l'atelier
                 selection = reponse_tableau.get("selection", {})
                 lignes_cochees = selection.get("rows", [])
                 
                 if lignes_cochees:
-                    # Extraction sûre du numéro de livre correspondant à la ligne cliquée
                     index_ligne = lignes_cochees[0]
                     num_selectionne = int(df_train.iloc[index_ligne]["N° Livre"])
                     

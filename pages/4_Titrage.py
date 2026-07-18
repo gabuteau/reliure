@@ -1,26 +1,23 @@
 import streamlit as st
-import psycopg2
+from supabase import create_client
 from datetime import datetime
 import pandas as pd
 
-def obtenir_connexion():
-    return psycopg2.connect(st.secrets["PG_URL"])
+def obtenir_client_supabase():
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 def lister_tous_les_clients():
-    conn = obtenir_connexion()
-    cursor = conn.cursor()
-    cursor.execute("SELECT nom FROM clients ORDER BY nom ASC")
-    clients = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return clients
+    supabase = obtenir_client_supabase()
+    try:
+        reponse = supabase.table("clients").select("nom").order("nom").execute()
+        return [row["nom"] for row in reponse.data]
+    except Exception:
+        return []
 
 def lister_les_trains_du_client(client):
-    conn = obtenir_connexion()
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT numero_train FROM fiches_livres WHERE nom_client = %s ORDER BY numero_train DESC", (client,))
-    trains = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return trains
+    supabase = obtenir_client_supabase()
+    reponse = supabase.table("fiches_livres").select("numero_train").eq("nom_client", client).execute()
+    return sorted(list(set([row["numero_train"] for row in reponse.data])), reverse=True)
 
 st.set_page_config(page_title="Titrage Système 3", layout="wide")
 st.title("📟 Module de Composition Spécifique — Titrage Système 3")

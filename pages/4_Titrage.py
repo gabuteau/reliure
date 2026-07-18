@@ -200,7 +200,7 @@ else:
                     top_offset_px = hauteur_visuelle_px - bottom_offset - 8
                     
                     html_gabarit += f"""
-                    <div style="position: absolute; top: {top_offset_px}px; width: 100%; text-align: center; color: {coloration_ligne}; font-size: 13px; font-weight: bold; {fond_alert} text-transform: uppercase; white-space: nowrap; overflow: visible;" title="Position: {mm_pos}mm">
+                    <div style="position: absolute; top: {top_offset_px}px; width: 100%; text-align: center; color: {coloration_ligne}; font-size: 13px; font-weight: bold; {fond_alerte} text-transform: uppercase; white-space: nowrap; overflow: visible;" title="Position: {mm_pos}mm">
                         {txt}
                     </div>
                     """

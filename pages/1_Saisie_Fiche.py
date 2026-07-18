@@ -5,13 +5,7 @@ import pandas as pd
 from datetime import datetime
 
 def obtenir_connexion():
-    return psycopg2.connect(
-        host=st.secrets["postgres"]["host"],
-        database=st.secrets["postgres"]["database"],
-        user=st.secrets["postgres"]["user"],
-        password=st.secrets["postgres"]["password"],
-        port=st.secrets["postgres"]["port"]
-    )
+    return psycopg2.connect(st.secrets["PG_URL"])
 
 def determiner_categorie_format(l, h):
     if l <= 115 and h <= 185: return "115 x 185 (In 12)"

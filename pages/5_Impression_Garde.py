@@ -52,7 +52,7 @@ st.html("""
             font-family: 'Courier New', Courier, monospace !important;
             color: #000 !important;
             background-color: #fff !important;
-            page-break-after: always !important; /* Force un saut de page pour l'imprimante entre chaque livre */
+            page-break-after: always !important;
             margin-bottom: 0px !important;
         }
     }
@@ -115,7 +115,6 @@ with st.container(border=True):
             
         if train_sel != "-- Choisir --":
             liste_livres = lister_les_livres_du_train(client_sel, train_sel)
-            # Ajout de l'option globale pour le train complet
             options_livres = ["-- Choisir --", "🖨️ [TOUT LE TRAIN ENTIER]"] + [str(n) for n in liste_livres]
             with c3:
                 livre_sel = st.selectbox("Sélection du volume", options=options_livres)
@@ -123,7 +122,6 @@ with st.container(border=True):
 st.write("---")
 
 def generer_bloc_html_fiche(data, date_str):
-    """Génère la structure HTML propre pour une fiche unique"""
     rogner_str = "OUI" if data.get('ne_pas_rogner') else "NON"
     scanne_str = "OUI" if data.get('repro_scanne') else "NON"
     report_str = "OUI" if data.get('repro_report') else "NON"
@@ -236,8 +234,11 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
             st.info(f"💡 **Mode Train Complet** : {len(liste_fiches)} fiches prêtes. Lancez **Ctrl + P** pour générer le dossier d'impression d'un coup.")
             
             html_global = ""
-            for fiche in liste_fiches:
+            for idx, fiche in enumerate(liste_fiches):
                 html_global += generer_bloc_html_fiche(fiche, date_commune)
+                # Insertion d'une balise de saut de page matérielle stricte entre les fiches, sauf après la toute dernière
+                if idx < len(liste_fiches) - 1:
+                    html_global += '<div style="page-break-after: always; break-after: page;"></div>'
                 
             st.html(html_global)
         else:

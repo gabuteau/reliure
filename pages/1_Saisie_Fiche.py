@@ -82,6 +82,17 @@ st.title("📚 Saisie de Fiche — Devis + Traitements")
 liste_clients_existants = lister_tous_les_clients()
 liste_couleurs = ["Noir", "Rouge", "Bleu", "Vert", "Jaune", "Orange", "Violet", "Marron"]
 
+# Liste globale de vos suppléments disponibles à l'atelier
+OPTIONS_SUPPLEMENTS = [
+    "Plats conservés", "Onglets", "Doublage japon", "Charnières toile", 
+    "Conservation de gardes", "Couture sur nerfs", "Couvrure sur nerf", 
+    "Filets fleurons", "Plaçure", "Sup ouvrage déjà relié", 
+    "Plaçure intercalaires", "Doublage couverture", "Montage de couverture", 
+    "Fonds de cahiers", "Pose antivol", "Désacidification", 
+    "Désinfection", "Charnière cuir", "Enlever agrafes", 
+    "Couture manuelle sur rubans"
+]
+
 if not liste_clients_existants:
     st.warning("⚠️ Créez d'abord un client dans le module 'Fiches Clients'.")
 else:
@@ -184,6 +195,27 @@ else:
             with c_p3: hauteur_maquette = st.number_input("Hauteur maquette (mm)", min_value=0, value=valeur_maquette_defaut, step=1)
         else: hauteur_maquette = valeur_maquette_defaut
 
+        # --- NOUVELLE SECTION 8 : LES SUPPLÉMENTS D'ATELIER ---
+        st.write("---")
+        st.subheader("8. Suppléments optionnels (Max 4)")
+        
+        # Récupération des suppléments déjà enregistrés si on est en cours de modification
+        sup1_def = donnees_edition["supplement_1"] if (donnees_edition and donnees_edition["supplement_1"] in OPTIONS_SUPPLEMENTS) else "-- Aucun --"
+        sup2_def = donnees_edition["supplement_2"] if (donnees_edition and donnees_edition["supplement_2"] in OPTIONS_SUPPLEMENTS) else "-- Aucun --"
+        sup3_def = donnees_edition["supplement_3"] if (donnees_edition and donnees_edition["supplement_3"] in OPTIONS_SUPPLEMENTS) else "-- Aucun --"
+        sup4_def = donnees_edition["supplement_4"] if (donnees_edition and donnees_edition["supplement_4"] in OPTIONS_SUPPLEMENTS) else "-- Aucun --"
+
+        liste_choix_sups = ["-- Aucun --"] + OPTIONS_SUPPLEMENTS
+
+        c_sup1, c_sup2 = st.columns(2)
+        with c_sup1: 
+            supplement_1 = st.selectbox("Supplément 1", options=liste_choix_sups, index=liste_choix_sups.index(sup1_def))
+            supplement_2 = st.selectbox("Supplément 2", options=liste_choix_sups, index=liste_choix_sups.index(sup2_def))
+        with c_sup2:
+            supplement_3 = st.selectbox("Supplément 3", options=liste_choix_sups, index=liste_choix_sups.index(sup3_def))
+            supplement_4 = st.selectbox("Supplément 4", options=liste_choix_sups, index=liste_choix_sups.index(sup4_def))
+        # -----------------------------------------------------
+
         st.write("---")
         if st.button("💾 Valider l'enregistrement"):
             donnees_fiche = {
@@ -192,7 +224,11 @@ else:
                 "hauteur": hauteur, "largeur": largeur, "epaisseur": epaisseur, "ne_pas_rogner": ne_pas_rogner, "traitement": traitement, "type_reliure": type_reliure, "type_couture": type_couture,
                 "agraphes": agraphes, "nombre_cahiers": nombre_cahiers, "sans_titrage": sans_titrage, "titrage_sens": titrage_sens, "lignes_sup": lignes_sup, "titrage_couleur": titrage_couleur, "police": police, "type_toile": type_toile, "couleur": couleur,
                 "cocher_piece_titre": cocher_piece_titre, "couleur_pieces_toile": couleur_pieces_toile, "marquage_pieces": marquage_pieces, "hauteur_maquette": hauteur_maquette,
-                "supplement_1": "", "supplement_2": "", "supplement_3": "", "supplement_4": ""
+                # Enregistrement des vraies valeurs sélectionnées à la place du texte vide
+                "supplement_1": "" if supplement_1 == "-- Aucun --" else supplement_1, 
+                "supplement_2": "" if supplement_2 == "-- Aucun --" else supplement_2, 
+                "supplement_3": "" if supplement_3 == "-- Aucun --" else supplement_3, 
+                "supplement_4": "" if supplement_4 == "-- Aucun --" else supplement_4
             }
             enregistrer_ou_mettre_a_jour_livre(donnees_fiche)
             st.success("Données enregistrées avec succès sur Supabase API !")

@@ -1,24 +1,30 @@
 import streamlit as st
-import sqlite3
+import psycopg2
+import psycopg2.extras
 
-DB_FILE = "base_reliure_v2.db"
+def obtenir_connexion():
+    return psycopg2.connect(
+        host=st.secrets["postgres"]["host"],
+        database=st.secrets["postgres"]["database"],
+        user=st.secrets["postgres"]["user"],
+        password=st.secrets["postgres"]["password"],
+        port=st.secrets["postgres"]["port"]
+    )
 
-def initialiser_tables_clients():
-    """Garantit la présence des tables nécessaires pour éviter les OperationalError lors d'une suppression."""
-    conn = sqlite3.connect(DB_FILE)
+def initialiser_tables_globales():
+    conn = obtenir_connexion()
     cursor = conn.cursor()
-    # Sécurité pour la table clients
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS clients (
-            nom TEXT PRIMARY KEY, 
-            adresse TEXT, 
-            telephone TEXT, 
-            email TEXT, 
-            contact_nom TEXT, 
-            notes TEXT
+            nom TEXT PRIMARY KEY, adresse TEXT, telephone TEXT, email TEXT, contact_nom TEXT, notes TEXT
         )
     """)
-    # Sécurité pour la table fiches_livres (évite le plantage lors du DELETE)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tarifs_clients (
+            nom_client TEXT NOT NULL, designation TEXT NOT NULL, format_nom TEXT NOT NULL, montant REAL NOT NULL,
+            PRIMARY KEY (nom_client, designation, format_nom)
+        )
+    """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS fiches_livres (
             nom_client TEXT NOT NULL, numero_train TEXT NOT NULL, numero_livre INTEGER NOT NULL,
@@ -28,10 +34,9 @@ def initialiser_tables_clients():
             titrage_sens TEXT, lignes_sup INTEGER, titrage_couleur TEXT, police TEXT, type_toile TEXT, couleur TEXT,
             cocher_piece_titre BOOLEAN, couleur_pieces_toile TEXT, marquage_pieces TEXT, hauteur_maquette INTEGER,
             supplement_1 TEXT, supplement_2 TEXT, supplement_3 TEXT, supplement_4 TEXT,
-            PRIMARY KEY (nom_client, numero_train, numero_livre) ON CONFLICT REPLACE
+            PRIMARY KEY (nom_client, numero_train, numero_livre)
         )
     """)
-    # Sécurité pour la table titrage_system3
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS titrage_system3 (
             nom_client TEXT, numero_train TEXT, numero_livre INTEGER, date_saisie TEXT,
@@ -44,7 +49,7 @@ def initialiser_tables_clients():
     conn.close()
 
 def lister_tous_les_clients():
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
     cursor.execute("SELECT nom FROM clients ORDER BY nom ASC")
     clients = [row[0] for row in cursor.fetchall()]
@@ -52,43 +57,38 @@ def lister_tous_les_clients():
     return clients
 
 def recuperer_fiche_client(nom_client):
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM clients WHERE nom = ?", (nom_client,))
+    conn = obtenir_connexion()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cursor.execute("SELECT * FROM clients WHERE nom = %s", (nom_client,))
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
 
 def enregistrer_client(nom, adresse, contact, notes):
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO clients (nom, adresse, telephone, email, contact_nom, notes) 
-        VALUES (?, ?, '', '', ?, ?) 
-        ON CONFLICT(nom) DO UPDATE SET 
-            adresse=excluded.adresse, 
-            contact_nom=excluded.contact_nom, 
-            notes=excluded.notes
+        VALUES (%s, %s, '', '', %s, %s) 
+        ON CONFLICT(nom) DO UPDATE SET adresse=EXCLUDED.adresse, contact_nom=EXCLUDED.contact_nom, notes=EXCLUDED.notes
     """, (nom, adresse, contact, notes))
     conn.commit()
     conn.close()
 
 def supprimer_client_bdd(nom_client):
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM tarifs_clients WHERE nom_client = ?", (nom_client,))
-    cursor.execute("DELETE FROM fiches_livres WHERE nom_client = ?", (nom_client,))
-    cursor.execute("DELETE FROM titrage_system3 WHERE nom_client = ?", (nom_client,))
-    cursor.execute("DELETE FROM clients WHERE nom = ?", (nom_client,))
+    cursor.execute("DELETE FROM tarifs_clients WHERE nom_client = %s", (nom_client,))
+    cursor.execute("DELETE FROM fiches_livres WHERE nom_client = %s", (nom_client,))
+    cursor.execute("DELETE FROM titrage_system3 WHERE nom_client = %s", (nom_client,))
+    cursor.execute("DELETE FROM clients WHERE nom = %s", (nom_client,))
     conn.commit()
     conn.close()
 
 st.set_page_config(page_title="Gestion des Clients", layout="wide")
 st.title("🏢 Gestion de l'Annuaire des Clients")
 
-# Exécution de la vérification de la structure BDD
-initialiser_tables_clients()
+initialiser_tables_globales()
 
 action_client = st.radio("Action :", ["Sélectionner / Modifier un client", "➕ Créer un nouveau client"], horizontal=True)
 st.write("---")
@@ -103,7 +103,7 @@ if action_client == "➕ Créer un nouveau client":
         nc_notes = st.text_area("Notes d'atelier spécifiques")
         if st.form_submit_button("💾 Enregistrer le nouveau client") and nc_nom:
             enregistrer_client(nc_nom, nc_adresse, nc_contact, nc_notes)
-            st.success(f"Client '{nc_nom}' ajouté avec succès.")
+            st.success(f"Client '{nc_nom}' synchronisé sur Supabase.")
             st.rerun()
 else:
     if liste_clients_existants:
@@ -116,13 +116,11 @@ else:
                 mod_notes = st.text_area("Notes d'atelier", value=fiche["notes"])
                 if st.form_submit_button("💾 Sauvegarder les modifications"):
                     enregistrer_client(fiche["nom"], mod_adresse, mod_contact, mod_notes)
-                    st.success("Fiche client mise à jour.")
+                    st.success("Fiche mise à jour.")
                     st.rerun()
             
             st.write("---")
             st.markdown("#### 🚨 Zone de danger")
-            st.error("⚠️ **Attention :** La suppression d'un client est définitive et irréversible. Cela effacera complètement sa fiche d'annuaire, sa grille de tarifs personnalisés ainsi que l'intégralité de ses trains de livres d'atelier.")
-            
             if f"confirm_delete_{fiche['nom']}" not in st.session_state:
                 st.session_state[f"confirm_delete_{fiche['nom']}"] = False
             
@@ -131,14 +129,14 @@ else:
                     st.session_state[f"confirm_delete_{fiche['nom']}"] = True
                     st.rerun()
             else:
-                st.warning(f"Êtes-vous absolument sûr de vouloir détruire {fiche['nom']} ainsi que tous ses tarifs et historiques de trains ?")
+                st.warning(f"Confirmer la suppression définitive de {fiche['nom']} sur le cloud ?")
                 col_del1, col_del2 = st.columns(2)
                 with col_del1:
-                    if st.button("✔️ OUI, CONFIRMER LA SUPPRESSION DÉFINITIVE"):
+                    if st.button("✔️ OUI, EFFACER TOUT"):
                         supprimer_client_bdd(fiche["nom"])
                         st.session_state[f"confirm_delete_{fiche['nom']}"] = False
                         st.rerun()
                 with col_del2:
-                    if st.button("🔄 Annuler l'action"):
+                    if st.button("🔄 Annuler"):
                         st.session_state[f"confirm_delete_{fiche['nom']}"] = False
                         st.rerun()

@@ -19,7 +19,13 @@ def recuperer_fiche_client(nom_client):
 
 def enregistrer_client(nom, adresse, contact, notes):
     supabase = obtenir_client_supabase()
-    donnees = {"nom": nom, "adresse": adresse, "telephone": "", "email": "", "contact_nom": contact, "notes": notes}
+    # On n'envoie que les colonnes de base pour éviter tout conflit de structure
+    donnees = {
+        "nom": nom, 
+        "adresse": adresse, 
+        "contact_nom": contact, 
+        "notes": notes
+    }
     supabase.table("clients").upsert(donnees).execute()
 
 def supprimer_client_globale(nom_client):

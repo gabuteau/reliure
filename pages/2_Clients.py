@@ -19,14 +19,27 @@ def recuperer_fiche_client(nom_client):
 
 def enregistrer_client(nom, adresse, contact, notes):
     supabase = obtenir_client_supabase()
-    # On n'envoie que les colonnes de base pour éviter tout conflit de structure
     donnees = {
         "nom": nom, 
         "adresse": adresse, 
         "contact_nom": contact, 
         "notes": notes
     }
-    supabase.table("clients").upsert(donnees).execute()
+    
+    try:
+        # 1. On vérifie si ce client existe déjà dans la base
+        verification = supabase.table("clients").select("nom").eq("nom", nom).execute()
+        
+        if verification.data:
+            # 2. Si oui, on fait une mise à jour ciblée
+            supabase.table("clients").update(donnees).eq("nom", nom).execute()
+        else:
+            # 3. Si non, on fait une insertion propre
+            supabase.table("clients").insert(donnees).execute()
+            
+    except Exception as e:
+        # En cas de pépin, on affiche l'erreur technique exacte directement à l'écran
+        st.error(f"Détail de l'erreur retournée par la base : {e}")
 
 def supprimer_client_globale(nom_client):
     supabase = obtenir_client_supabase()

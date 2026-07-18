@@ -1,12 +1,19 @@
 import streamlit as st
-import sqlite3
-import pandas as pd
+import psycopg2
 from datetime import datetime
+import pandas as pd
 
-DB_FILE = "base_reliure_v2.db"
+def obtenir_connexion():
+    return psycopg2.connect(
+        host=st.secrets["postgres"]["host"],
+        database=st.secrets["postgres"]["database"],
+        user=st.secrets["postgres"]["user"],
+        password=st.secrets["postgres"]["password"],
+        port=st.secrets["postgres"]["port"]
+    )
 
 def lister_tous_les_clients():
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
     cursor.execute("SELECT nom FROM clients ORDER BY nom ASC")
     clients = [row[0] for row in cursor.fetchall()]
@@ -14,9 +21,9 @@ def lister_tous_les_clients():
     return clients
 
 def lister_les_trains_du_client(client):
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT numero_train FROM fiches_livres WHERE nom_client = ? ORDER BY numero_train DESC", (client,))
+    cursor.execute("SELECT DISTINCT numero_train FROM fiches_livres WHERE nom_client = %s ORDER BY numero_train DESC", (client,))
     trains = [row[0] for row in cursor.fetchall()]
     conn.close()
     return trains
@@ -71,7 +78,6 @@ else:
     with col_gabarit_visualisation:
         st.subheader("📐 Gabarit de Prévisualisation (HTML)")
         
-        # Rendu du gabarit et de la règle graduée via du HTML propre (pas de dépendance externe)
         html_gabarit = f"""
         <div style="display: flex; font-family: monospace; background-color: #f8f9fa; padding: 15px; border-radius: 5px;">
             <div style="display: flex; flex-direction: column-reverse; justify-content: space-between; height: 500px; padding-right: 10px; border-right: 2px solid #ccc; text-align: right; width: 40px;">
@@ -89,7 +95,6 @@ else:
             h_pos = row_data["Hauteur (1-34)"]
             txt = row_data["Titrage"]
             if pd.notna(h_pos) and txt:
-                # Calcul de la position depuis le bas du dos cartonné
                 bottom_offset = (int(h_pos) - 1) * 14.5 + 10
                 html_gabarit += f'<div style="position: absolute; bottom: {bottom_offset}px; width: 100%; text-align: center; font-weight: bold; font-size: 14px; color: #111; text-transform: uppercase;">{txt}</div>'
                 

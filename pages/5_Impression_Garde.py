@@ -31,8 +31,8 @@ def recuperer_livre_complet(client, train, num_livre):
 # Configuration de la page
 st.set_page_config(page_title="Impression Garde", layout="centered")
 
-# --- CSS d'impression pour masquer les menus Streamlit et formater la page blanche ---
-st.markdown("""
+# --- Injection sécurisée du CSS via st.html() ---
+st.html("""
     <style>
     @media print {
         #MainMenu, header, footer, div.stButton, div[data-testid="stSidebar"] {
@@ -69,11 +69,11 @@ st.markdown("""
         color: #000;
     }
     </style>
-""", unsafe_allowed_html=True)
+""")
 
 st.title("🖨️ Génération — Impression Garde")
 
-# --- Zone de sélection (Masquée automatiquement lors de l'impression réelle) ---
+# --- Zone de sélection ---
 with st.container():
     st.subheader("Sélection du document")
     c1, c2, c3 = st.columns(3)
@@ -94,7 +94,7 @@ with st.container():
 
 st.write("---")
 
-# --- Rendu de la fiche de garde si un livre est sélectionné ---
+# --- Rendu de la fiche de garde ---
 if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel' in locals() and livre_sel != "-- Choisir --":
     
     data = recuperer_livre_complet(client_sel, train_sel, int(livre_sel))
@@ -155,7 +155,6 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
         st.markdown("### 🎨 Matériaux & Finitions")
         st.markdown('<div class="print-box">', unsafe_allowed_html=True)
         
-        # Ligne Type de Toile
         titrage_toile_str = "SANS TITRAGE" if data['sans_titrage'] else f"{data['titrage_couleur']} ({data['titrage_sens']})"
         st.markdown(
             f"<div style='margin-bottom: 10px;'>"
@@ -166,7 +165,6 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
             unsafe_allowed_html=True
         )
         
-        # Ligne Pièce de Titre
         if data['cocher_piece_titre']:
             st.markdown(
                 f"<div>"
@@ -195,4 +193,3 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
         st.markdown('</div>', unsafe_allowed_html=True)
     else:
         st.error("Impossible de récupérer les informations de ce livre.")
-

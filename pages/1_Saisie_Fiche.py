@@ -1,13 +1,10 @@
 import streamlit as st
-import psycopg2
-import psycopg2.extras
-import pandas as pd
+from supabase import create_client
 from datetime import datetime
+import pandas as pd
 
-def obtenir_connexion():
-    conn = psycopg2.connect(st.secrets["PG_URL"])
-    conn.set_client_encoding('UTF8')
-    return conn
+def obtenir_client_supabase():
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 def determiner_categorie_format(l, h):
     if l <= 115 and h <= 185: return "115 x 185 (In 12)"
@@ -24,71 +21,60 @@ def determiner_categorie_format(l, h):
     else: return "Plano B"
 
 def lister_tous_les_clients():
-    conn = obtenir_connexion()
-    cursor = conn.cursor()
-    cursor.execute("SELECT nom FROM clients ORDER BY nom ASC")
-    clients = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return clients
+    supabase = obtenir_client_supabase()
+    try:
+        reponse = supabase.table("clients").select("nom").order("nom").execute()
+        return [row["nom"] for row in reponse.data]
+    except Exception:
+        return []
 
 def lister_les_trains_du_client(client):
-    conn = obtenir_connexion()
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT numero_train FROM fiches_livres WHERE nom_client = %s ORDER BY numero_train DESC", (client,))
-    trains = [row[0] for row in cursor.fetchall()]
-    conn.close()
+    supabase = obtenir_client_supabase()
+    reponse = supabase.table("fiches_livres").select("numero_train").eq("nom_client", client).execute()
+    trains = sorted(list(set([row["numero_train"] for row in reponse.data])), reverse=True)
     return trains
 
 def generer_automatiquement_numero_train(client):
     annee_courante = datetime.now().year
-    prefixe_recherche = f"T{annee_courante}%"
-    conn = obtenir_connexion()
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT numero_train FROM fiches_livres WHERE nom_client = %s AND numero_train LIKE %s ORDER BY numero_train DESC LIMIT 1", (client, prefixe_recherche))
-    dernier_train = cursor.fetchone()
-    conn.close()
-    if d_train := dernier_train:
-        str_num = d_train[0][5:]
+    prefixe = f"T{annee_courante}"
+    supabase = obtenir_client_supabase()
+    reponse = supabase.table("fiches_livres").select("numero_train").eq("nom_client", client).like("numero_train", f"{prefixe}%").execute()
+    trains = list(set([row["numero_train"] for row in reponse.data]))
+    if trains:
+        trains.sort(reverse=True)
+        str_num = trains[0][5:]
         try: prochain_ordre = int(str_num) + 1
         except ValueError: prochain_ordre = 1
-    else: prochain_ordre = 1
-    return f"T{annee_courante}{prochain_ordre:03d}"
+    else:
+        prochain_ordre = 1
+    return f"{prefixe}{prochain_ordre:03d}"
 
 def determiner_prochain_numero_livre(client, train):
-    conn = obtenir_connexion()
-    cursor = conn.cursor()
-    cursor.execute("SELECT MAX(numero_livre) FROM fiches_livres WHERE nom_client = %s AND numero_train = %s", (client, train))
-    max_num = cursor.fetchone()[0]
-    conn.close()
-    return (max_num + 1) if max_num is not None else 1
+    supabase = obtenir_client_supabase()
+    reponse = supabase.table("fiches_livres").select("numero_livre").eq("nom_client", client).eq("numero_train", train).execute()
+    nums = [row["numero_livre"] for row in reponse.data]
+    return (max(nums) + 1) if nums else 1
 
 def recuperer_livre_specifique(client, train, num_livre):
-    conn = obtenir_connexion()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    cursor.execute("SELECT * FROM fiches_livres WHERE nom_client = %s AND numero_train = %s AND numero_livre = %s", (client, train, num_livre))
-    row = cursor.fetchone()
-    conn.close()
-    return dict(row) if row else None
+    supabase = obtenir_client_supabase()
+    reponse = supabase.table("fiches_livres").select("*").eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
+    return reponse.data[0] if reponse.data else None
 
 def recuperer_livres_du_train(client, train):
-    conn = obtenir_connexion()
-    cursor = conn.cursor()
-    cursor.execute("SELECT numero_livre, nature_doc, text_doc, largeur, hauteur, type_reliure, couleur, CASE WHEN cocher_piece_titre THEN 'Oui (' || couleur_pieces_toile || ')' ELSE 'Non' END as piece_titre FROM fiches_livres WHERE nom_client = %s AND numero_train = %s ORDER BY numero_livre ASC", (client, train))
-    donnees = cursor.fetchall()
-    conn.close()
-    return donnees
+    supabase = obtenir_client_supabase()
+    reponse = supabase.table("fiches_livres").select("numero_livre, nature_doc, text_doc, largeur, hauteur, type_reliure, couleur, cocher_piece_titre, couleur_pieces_toile").eq("nom_client", client).eq("numero_train", train).order("numero_livre").execute()
+    
+    donnees_formatees = []
+    for r in reponse.data:
+        pt_active = f"Oui ({r['couleur_pieces_toile']})" if r['cocher_piece_titre'] else "Non"
+        donnees_formatees.append([
+            r['numero_livre'], r['nature_doc'], r['text_doc'], r['largeur'], r['hauteur'], r['type_reliure'], r['couleur'], pt_active
+        ])
+    return donnees_formatees
 
 def enregistrer_ou_mettre_a_jour_livre(donnees):
-    conn = obtenir_connexion()
-    cursor = conn.cursor()
-    champs = ", ".join(donnees.keys())
-    placeholders = ", ".join(["%s"] * len(donnees))
-    updates = ", ".join([f"{k} = EXCLUDED.{k}" for k in donnees.keys() if k not in ["nom_client", "numero_train", "numero_livre"]])
-    valeurs = tuple(donnees.values())
-    requete = f"INSERT INTO fiches_livres ({champs}) VALUES ({placeholders}) ON CONFLICT (nom_client, numero_train, numero_livre) DO UPDATE SET {updates}"
-    cursor.execute(requete, valeurs)
-    conn.commit()
-    conn.close()
+    supabase = obtenir_client_supabase()
+    supabase.table("fiches_livres").upsert(donnees).execute()
 
 st.set_page_config(page_title="Saisie & Suivi des Livres", layout="wide")
 st.title("📚 Saisie de Fiche — Devis + Traitements")
@@ -209,7 +195,7 @@ else:
                 "supplement_1": "", "supplement_2": "", "supplement_3": "", "supplement_4": ""
             }
             enregistrer_ou_mettre_a_jour_livre(donnees_fiche)
-            st.success("Données enregistrées avec succès sur Supabase !")
+            st.success("Données enregistrées avec succès sur Supabase API !")
             if "livre_selectionne" in st.session_state: del st.session_state.livre_selectionne
             st.rerun()
 

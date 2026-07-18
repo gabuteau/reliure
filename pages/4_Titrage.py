@@ -102,7 +102,7 @@ else:
                 t3_livre_num = st.selectbox("3. N° du livre", options=liste_livres)
                 
                 if t3_livre_num and t3_livre_num != "-- Choisir un livre --":
-                    t3_larg_brute, t3_haut_brute, t3_epaisseur = recuperecs_specs_livre(t3_client, t3_train_sel, t3_livre_num)
+                    t3_larg_brute, t3_haut_brute, t3_epaisseur = recuperer_specs_livre(t3_client, t3_train_sel, t3_livre_num)
                     livre_charge_valide = True
             else:
                 t3_livre_num = None

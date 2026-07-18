@@ -122,7 +122,10 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
         
         # Préparation des variables
         date_du_jour = datetime.now().strftime("%d/%m/%Y")
-        rogner_str = "NON" if data['ne_pas_rogner'] else "OUI"
+        
+        # Logique corrigée : si coché -> OUI, sinon -> NON
+        rogner_str = "OUI" if data['ne_pas_rogner'] else "NON"
+        
         scanne_str = "OUI" if data['repro_scanne'] else "NON"
         report_str = "OUI" if data['repro_report'] else "NON"
         titrage_toile_str = "SANS TITRAGE" if data['sans_titrage'] else f"{data['titrage_couleur']} ({data['titrage_sens']})"
@@ -157,7 +160,7 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
         else:
             html_sups = "<div><span class='field-value'>Aucun supplément</span></div>"
 
-        # --- Construction du bloc HTML unique et propre ---
+        # --- Construction du bloc HTML unique ---
         html_complet = f"""
         <div class="print-container">
             <h2 style="text-align: center; text-decoration: underline; margin-bottom: 30px;">- Informations sur la page de garde -</h2>
@@ -165,7 +168,7 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
             <!-- 1. En-tête Général -->
             <div class="print-row">
                 <div class="print-col">
-                    <span class="field-label">Client :</span> <span class="field-value">{data['nom_client']}</span><br>
+                    <span class="no-print" class="field-label">Client :</span> <span class="field-value">{data['nom_client']}</span><br>
                     <span class="field-label">N° du Train :</span> <span class="field-value">{data['numero_train']}</span><br>
                     <span class="field-label">N° du Livre :</span> <span class="field-value">{data['numero_livre']}</span>
                 </div>
@@ -230,7 +233,6 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
         </div>
         """
         
-        # Affichage sécurisé de l'ensemble
         st.html(html_complet)
         
     else:

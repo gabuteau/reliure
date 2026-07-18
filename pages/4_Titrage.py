@@ -135,7 +135,7 @@ else:
                 st.caption("🔄 *Données de titrage existantes chargées depuis le Cloud.*")
             else:
                 df_initial = pd.DataFrame([
-                    {"Hauteur du titre (mm)": int(t3_haut_brute * 0.7), "Titrage": "NOUVEAU TITRE"},
+                    {"Hauteur du titre (mm)": int(t3_haut_brute * 0.7), "Titrage": "TITRE"},
                     {"Hauteur du titre (mm)": int(t3_haut_brute * 0.15), "Titrage": "COTE"}
                 ])
                 st.caption("✨ *Création d'un nouveau gabarit pour ce livre.*")

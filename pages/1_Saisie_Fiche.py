@@ -1,9 +1,17 @@
 import streamlit as st
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import pandas as pd
 from datetime import datetime
 
-DB_FILE = "base_reliure_v2.db"
+def obtenir_connexion():
+    return psycopg2.connect(
+        host=st.secrets["postgres"]["host"],
+        database=st.secrets["postgres"]["database"],
+        user=st.secrets["postgres"]["user"],
+        password=st.secrets["postgres"]["password"],
+        port=st.secrets["postgres"]["port"]
+    )
 
 def determiner_categorie_format(l, h):
     if l <= 115 and h <= 185: return "115 x 185 (In 12)"
@@ -20,7 +28,7 @@ def determiner_categorie_format(l, h):
     else: return "Plano B"
 
 def lister_tous_les_clients():
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
     cursor.execute("SELECT nom FROM clients ORDER BY nom ASC")
     clients = [row[0] for row in cursor.fetchall()]
@@ -28,9 +36,9 @@ def lister_tous_les_clients():
     return clients
 
 def lister_les_trains_du_client(client):
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT numero_train FROM fiches_livres WHERE nom_client = ? ORDER BY numero_train DESC", (client,))
+    cursor.execute("SELECT DISTINCT numero_train FROM fiches_livres WHERE nom_client = %s ORDER BY numero_train DESC", (client,))
     trains = [row[0] for row in cursor.fetchall()]
     conn.close()
     return trains
@@ -38,50 +46,51 @@ def lister_les_trains_du_client(client):
 def generer_automatiquement_numero_train(client):
     annee_courante = datetime.now().year
     prefixe_recherche = f"T{annee_courante}%"
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT numero_train FROM fiches_livres WHERE nom_client = ? AND numero_train LIKE ? ORDER BY numero_train DESC LIMIT 1", (client, prefixe_recherche))
+    cursor.execute("SELECT DISTINCT numero_train FROM fiches_livres WHERE nom_client = %s AND numero_train LIKE %s ORDER BY numero_train DESC LIMIT 1", (client, prefixe_recherche))
     dernier_train = cursor.fetchone()
     conn.close()
-    if dernier_train:
-        str_num = dernier_train[0][5:]
+    if d_train := dernier_train:
+        str_num = d_train[0][5:]
         try: prochain_ordre = int(str_num) + 1
         except ValueError: prochain_ordre = 1
     else: prochain_ordre = 1
     return f"T{annee_courante}{prochain_ordre:03d}"
 
 def determiner_prochain_numero_livre(client, train):
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT MAX(numero_livre) FROM fiches_livres WHERE nom_client = ? AND numero_train = ?", (client, train))
+    cursor.execute("SELECT MAX(numero_livre) FROM fiches_livres WHERE nom_client = %s AND numero_train = %s", (client, train))
     max_num = cursor.fetchone()[0]
     conn.close()
     return (max_num + 1) if max_num is not None else 1
 
 def recuperer_livre_specifique(client, train, num_livre):
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM fiches_livres WHERE nom_client = ? AND numero_train = ? AND numero_livre = ?", (client, train, num_livre))
+    conn = obtenir_connexion()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cursor.execute("SELECT * FROM fiches_livres WHERE nom_client = %s AND numero_train = %s AND numero_livre = %s", (client, train, num_livre))
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
 
 def recuperer_livres_du_train(client, train):
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
-    cursor.execute("SELECT numero_livre, nature_doc, text_doc, largeur, hauteur, type_reliure, couleur, CASE WHEN cocher_piece_titre THEN 'Oui (' || couleur_pieces_toile || ')' ELSE 'Non' END as piece_titre FROM fiches_livres WHERE nom_client = ? AND numero_train = ? ORDER BY numero_livre ASC", (client, train))
+    cursor.execute("SELECT numero_livre, nature_doc, text_doc, largeur, hauteur, type_reliure, couleur, CASE WHEN cocher_piece_titre THEN 'Oui (' || couleur_pieces_toile || ')' ELSE 'Non' END as piece_titre FROM fiches_livres WHERE nom_client = %s AND numero_train = %s ORDER BY numero_livre ASC", (client, train))
     donnees = cursor.fetchall()
     conn.close()
     return donnees
 
 def enregistrer_ou_mettre_a_jour_livre(donnees):
-    conn = sqlite3.connect(DB_FILE)
+    conn = obtenir_connexion()
     cursor = conn.cursor()
     champs = ", ".join(donnees.keys())
-    placeholders = ", ".join(["?"] * len(donnees))
+    placeholders = ", ".join(["%s"] * len(donnees))
+    updates = ", ".join([f"{k} = EXCLUDED.{k}" for k in donnees.keys() if k not in ["nom_client", "numero_train", "numero_livre"]])
     valeurs = tuple(donnees.values())
-    cursor.execute(f"INSERT INTO fiches_livres ({champs}) VALUES ({placeholders})", valeurs)
+    requete = f"INSERT INTO fiches_livres ({champs}) VALUES ({placeholders}) ON CONFLICT (nom_client, numero_train, numero_livre) DO UPDATE SET {updates}"
+    cursor.execute(requete, valeurs)
     conn.commit()
     conn.close()
 
@@ -204,7 +213,7 @@ else:
                 "supplement_1": "", "supplement_2": "", "supplement_3": "", "supplement_4": ""
             }
             enregistrer_ou_mettre_a_jour_livre(donnees_fiche)
-            st.success("Données enregistrées avec succès !")
+            st.success("Données enregistrées avec succès sur Supabase !")
             if "livre_selectionne" in st.session_state: del st.session_state.livre_selectionne
             st.rerun()
 

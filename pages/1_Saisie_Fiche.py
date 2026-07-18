@@ -62,11 +62,8 @@ def recuperer_livre_specifique(client, train, num_livre):
 def supprimer_livre_specifique(client, train, num_livre):
     supabase = obtenir_client_supabase()
     try:
-        # 1. Optionnel : Supprimer aussi le titrage associé s'il existe pour éviter les données orphelines
         try: supabase.table("titrage_system3").delete().eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
         except Exception: pass
-        
-        # 2. Supprimer la fiche du livre
         supabase.table("fiches_livres").delete().eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
         return True
     except Exception as e:
@@ -156,13 +153,13 @@ else:
             if "livre_selectionne" in st.session_state:
                 num_livre_en_cours = st.session_state.livre_selectionne
                 donnees_edition = recuperer_livre_specifique(nom_client_valide, numero_train, num_livre_en_cours)
-                st.warning(f"🔄 Modification du Livre N° {num_livre_en_cours}")
-                if st.button("❌ Annuler la modification"):
+                st.warning(f"🔄 Modification active : Livre N° {num_livre_en_cours}")
+                if st.button("❌ Annuler la modification (Retour au mode création)"):
                     del st.session_state.livre_selectionne
                     st.rerun()
             else:
                 num_livre_en_cours = determiner_prochain_numero_livre(nom_client_valide, numero_train)
-                st.info(f"✨ Livre suivant automatique : **Livre N° {num_livre_en_cours}**")
+                st.info(f"✨ Mode Création : Nouveau Livre N° {num_livre_en_cours}")
 
             st.write("---")
             nature_doc = st.radio("Nature :", ["Monographie (Mono)", "Périodique (Pério)"], horizontal=True, index=0 if donnees_edition and donnees_edition["nature_doc"] == "Monographie (Mono)" else (1 if donnees_edition and donnees_edition["nature_doc"] == "Périodique (Pério)" else 0))
@@ -294,30 +291,33 @@ else:
             
             if livres_train:
                 df_train = pd.DataFrame(livres_train, columns=["N° Livre", "Nature", "État", "Largeur", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"])
-                
-                # Tableau en affichage simple (stable sur toutes les versions)
                 st.dataframe(df_train, use_container_width=True, hide_index=True)
                 
                 st.write("---")
-                st.subheader("🗑️ Zone de suppression de fiche")
+                st.subheader("⚙️ Actions sur les fiches du train")
                 
-                # Liste des numéros de livres disponibles dans ce train pour la suppression
                 liste_numeros_livres = [row[0] for row in livres_train]
-                
-                livre_a_supprimer = st.selectbox(
-                    "Choisir le N° de livre à supprimer définitivement :", 
-                    options=["-- Choisir un numéro --"] + liste_numeros_livres
+                livre_cible = st.selectbox(
+                    "Choisir un N° de livre pour agir :", 
+                    options=["-- Sélectionner un numéro --"] + liste_numeros_livres
                 )
                 
-                if livre_a_supprimer != "-- Choisir un numéro --":
-                    st.warning(f"⚠️ Vous vous apprêtez à supprimer la fiche et le titrage du Livre N° {livre_a_supprimer}.")
+                if livre_cible != "-- Sélectionner un numéro --":
+                    num_selectionne = int(livre_cible)
                     
-                    if st.button(f"Confirmer la suppression définitive du Livre N° {livre_a_supprimer}", type="secondary", use_container_width=True):
-                        if supprimer_livre_specifique(nom_client_valide, numero_train, int(livre_a_supprimer)):
-                            st.success(f"✅ Le livre N° {livre_a_supprimer} a bien été effacé.")
-                            # Si on était en train d'éditer ce livre à gauche, on nettoie la session
-                            if "livre_selectionne" in st.session_state and st.session_state.livre_selectionne == int(livre_a_supprimer):
-                                del st.session_state.livre_selectionne
+                    c_act1, c_act2 = st.columns(2)
+                    
+                    with c_act1:
+                        if st.button(f"✏️ Charger / Modifier le N° {num_selectionne}", use_container_width=True):
+                            st.session_state.livre_selectionne = num_selectionne
                             st.rerun()
+                            
+                    with c_act2:
+                        if st.button(f"🗑️ Supprimer le N° {num_selectionne}", type="secondary", use_container_width=True):
+                            if supprimer_livre_specifique(nom_client_valide, numero_train, num_selectionne):
+                                st.success(f"✅ Livre N° {num_selectionne} supprimé.")
+                                if "livre_selectionne" in st.session_state and st.session_state.livre_selectionne == num_selectionne:
+                                    del st.session_state.livre_selectionne
+                                st.rerun()
             else: 
                 st.info("Aucun livre encore enregistré dans ce Train.")

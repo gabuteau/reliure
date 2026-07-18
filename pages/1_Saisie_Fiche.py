@@ -291,24 +291,32 @@ else:
             
             if livres_train:
                 df_train = pd.DataFrame(livres_train, columns=["N° Livre", "Nature", "État", "Largeur", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"])
-                st.dataframe(df_train, use_container_width=True, hide_index=True)
                 
-                st.write("---")
-                st.subheader("⚙️ Actions sur les fiches du train")
-                
-                liste_numeros_livres = [row[0] for row in livres_train]
-                livre_cible = st.selectbox(
-                    "Choisir un N° de livre pour agir :", 
-                    options=["-- Sélectionner un numéro --"] + liste_numeros_livres
+                # Le tableau redevient cochable (une seule ligne à la fois)
+                reponse_tableau = st.dataframe(
+                    df_train, 
+                    use_container_width=True, 
+                    hide_index=True, 
+                    selection_mode="single-row", 
+                    on_select="rerun"
                 )
                 
-                if livre_cible != "-- Sélectionner un numéro --":
-                    num_selectionne = int(livre_cible)
+                # Détection sécurisée de la ligne cochée par l'atelier
+                selection = reponse_tableau.get("selection", {})
+                lignes_cochees = selection.get("rows", [])
+                
+                if lignes_cochees:
+                    # Extraction sûre du numéro de livre correspondant à la ligne cliquée
+                    index_ligne = lignes_cochees[0]
+                    num_selectionne = int(df_train.iloc[index_ligne]["N° Livre"])
+                    
+                    st.write("---")
+                    st.subheader(f"⚙️ Actions sur le Livre N° {num_selectionne}")
                     
                     c_act1, c_act2 = st.columns(2)
                     
                     with c_act1:
-                        if st.button(f"✏️ Charger / Modifier le N° {num_selectionne}", use_container_width=True):
+                        if st.button(f"✏️ Modifier le N° {num_selectionne}", use_container_width=True, type="primary"):
                             st.session_state.livre_selectionne = num_selectionne
                             st.rerun()
                             
@@ -319,5 +327,7 @@ else:
                                 if "livre_selectionne" in st.session_state and st.session_state.livre_selectionne == num_selectionne:
                                     del st.session_state.livre_selectionne
                                 st.rerun()
+                else:
+                    st.info("💡 Cochez la case au début d'une ligne du tableau pour **Modifier** ou **Supprimer** un livre.")
             else: 
                 st.info("Aucun livre encore enregistré dans ce Train.")

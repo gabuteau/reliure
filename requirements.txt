@@ -1,1 +1,2 @@
 matplotlib
+psycopg2-binary

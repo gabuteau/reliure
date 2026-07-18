@@ -122,7 +122,9 @@ else:
             c_dim1, c_dim2, c_dim3 = st.columns(3)
             with c_dim1: st.number_input("Hauteur récupérée (mm)", value=int(t3_haut_brute), disabled=True)
             with c_dim2: st.number_input("Largeur utile du dos (Ép + 10mm)", value=int(t3_largeur_dos_reelle), disabled=True)
-            with c_dim3: st.text_input("Finition d'atelier", value=f"Toile {t3_couleur_nom} / Marquage {t3_marquage_nom}", disabled=True)
+            with c_dim3: 
+                st.text_input("Couleur de la toile", value=t3_couleur_nom, disabled=True)
+                st.text_input("Type de marquage", value=t3_marquage_nom, disabled=True)
             
             st.write("---")
             st.subheader("✍️ Composition des lignes (Position en mm)")

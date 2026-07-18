@@ -91,6 +91,17 @@ OPTIONS_SUPPLEMENTS = [
     "Couture manuelle sur rubans"
 ]
 
+# Grille tarifaire indicative de l'atelier
+PRIX_SUPPLEMENTS = {
+    "Plats conservés": 15.00, "Onglets": 8.50, "Doublage japon": 22.00, "Charnières toile": 14.00,
+    "Conservation de gardes": 12.00, "Couture sur nerfs": 35.00, "Couvrure sur nerf": 40.00,
+    "Filets fleurons": 25.00, "Plaçure": 18.00, "Sup ouvrage déjà relié": 30.00,
+    "Plaçure intercalaires": 15.00, "Doublage couverture": 20.00, "Montage de couverture": 17.50,
+    "Fonds de cahiers": 12.50, "Pose antivol": 3.00, "Désacidification": 45.00,
+    "Désinfection": 50.00, "Charnière cuir": 28.00, "Enlever agrafes": 9.00,
+    "Couture manuelle sur rubans": 32.00
+}
+
 if not liste_clients_existants:
     st.warning("⚠️ Créez d'abord un client dans le module 'Fiches Clients'.")
 else:
@@ -102,7 +113,6 @@ else:
         with c_tr1:
             nom_client_valide = st.selectbox("1. Sélectionner le client", options=["-- Choisir un client --"] + liste_clients_existants)
         
-        # Sécurité : On attend le choix du client
         if nom_client_valide == "-- Choisir un client --":
             st.info("💡 Sélectionnez un client pour afficher ou créer un train de livres.")
             train_charge_valide = False
@@ -123,7 +133,6 @@ else:
                 else:
                     numero_train = train_selectionne
 
-    # --- AFFICHAGE DU FORMULAIRE UNIQUEMENT SI LE TRAIN EST VALIDE ---
     if train_charge_valide:
         with col_saisie:
             st.write("---")
@@ -159,11 +168,11 @@ else:
 
             st.write("---")
             st.subheader("3. Désignation format")
-            c_dim1, c_dim2, c_dim3, c_dim4 = st.columns(4)
-            with c_dim1: largeur = st.number_input("Largeur (mm)", min_value=0, value=int(donnees_edition["largeur"]) if donnees_edition else 160, step=1)
-            with c_dim2: hauteur = st.number_input("Hauteur (mm)", min_value=0, value=int(donnees_edition["hauteur"]) if donnees_edition else 220, step=1)
-            with c_dim3: epaisseur = st.number_input("Épaisseur (mm)", min_value=0, value=int(donnees_edition["epaisseur"]) if donnees_edition else 20, step=1)
-            with c_dim4: ne_pas_rogner = st.checkbox("Ne pas rogner", value=bool(donnees_edition["ne_pas_rogner"]) if donnees_edition else False)
+            col_dim1, col_dim2, col_dim3, col_dim4 = st.columns(4)
+            with col_dim1: largeur = st.number_input("Largeur (mm)", min_value=0, value=int(donnees_edition["largeur"]) if donnees_edition else 160, step=1)
+            with col_dim2: hauteur = st.number_input("Hauteur (mm)", min_value=0, value=int(donnees_edition["hauteur"]) if donnees_edition else 220, step=1)
+            with col_dim3: epaisseur = st.number_input("Épaisseur (mm)", min_value=0, value=int(donnees_edition["epaisseur"]) if donnees_edition else 20, step=1)
+            with col_dim4: ne_pas_rogner = st.checkbox("Ne pas rogner", value=bool(donnees_edition["ne_pas_rogner"]) if donnees_edition else False)
 
             format_detecte = determiner_categorie_format(largeur, hauteur)
             st.success(f"📐 **Format détecté** : {format_detecte}")
@@ -217,6 +226,15 @@ else:
 
             st.write("---")
             st.subheader("8. Suppléments optionnels (Max 4)")
+
+            def afficher_prix_indicatif(nom_supplement):
+                """Affiche le tarif sous la cellule si un supplément est sélectionné"""
+                if nom_supplement and nom_supplement != "-- Aucun --":
+                    prix = PRIX_SUPPLEMENTS.get(nom_supplement, 0.00)
+                    st.caption(f"💰 *Prix indicatif : {prix:.2f} €*")
+                else:
+                    st.caption(" ") # Conserve l'alignement vertical
+
             sup1_def = donnees_edition["supplement_1"] if (donnees_edition and donnees_edition["supplement_1"] in OPTIONS_SUPPLEMENTS) else "-- Aucun --"
             sup2_def = donnees_edition["supplement_2"] if (donnees_edition and donnees_edition["supplement_2"] in OPTIONS_SUPPLEMENTS) else "-- Aucun --"
             sup3_def = donnees_edition["supplement_3"] if (donnees_edition and donnees_edition["supplement_3"] in OPTIONS_SUPPLEMENTS) else "-- Aucun --"
@@ -226,10 +244,19 @@ else:
             c_sup1, c_sup2 = st.columns(2)
             with c_sup1: 
                 supplement_1 = st.selectbox("Supplément 1", options=liste_choix_sups, index=liste_choix_sups.index(sup1_def))
+                afficher_prix_indicatif(supplement_1)
                 supplement_2 = st.selectbox("Supplément 2", options=liste_choix_sups, index=liste_choix_sups.index(sup2_def))
+                afficher_prix_indicatif(supplement_2)
             with c_sup2:
                 supplement_3 = st.selectbox("Supplément 3", options=liste_choix_sups, index=liste_choix_sups.index(sup3_def))
+                afficher_prix_indicatif(supplement_3)
                 supplement_4 = st.selectbox("Supplément 4", options=liste_choix_sups, index=liste_choix_sups.index(sup4_def))
+                afficher_prix_indicatif(supplement_4)
+
+            # Affichage dynamique du cumul pour la clarté du devis d'atelier
+            total_sups = sum([PRIX_SUPPLEMENTS.get(s, 0.0) for s in [supplement_1, supplement_2, supplement_3, supplement_4]])
+            if total_sups > 0:
+                st.info(f"📊 **Sous-total suppléments pour ce livre :** {total_sups:.2f} €")
 
             st.write("---")
             if st.button("💾 Valider l'enregistrement", type="primary", use_container_width=True):

@@ -59,6 +59,15 @@ def recuperer_livre_specifique(client, train, num_livre):
     reponse = supabase.table("fiches_livres").select("*").eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
     return reponse.data[0] if reponse.data else None
 
+def supprimer_livre_specifique(client, train, num_livre):
+    supabase = obtenir_client_supabase()
+    try:
+        supabase.table("fiches_livres").delete().eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
+        return True
+    except Exception as e:
+        st.error(f"Erreur lors de la suppression : {e}")
+        return False
+
 def recuperer_livres_du_train(client, train):
     supabase = obtenir_client_supabase()
     reponse = supabase.table("fiches_livres").select("numero_livre, nature_doc, text_doc, largeur, hauteur, type_reliure, couleur, cocher_piece_titre, couleur_pieces_toile").eq("nom_client", client).eq("numero_train", train).order("numero_livre").execute()
@@ -91,7 +100,6 @@ OPTIONS_SUPPLEMENTS = [
     "Couture manuelle sur rubans"
 ]
 
-# Grille tarifaire indicative de l'atelier
 PRIX_SUPPLEMENTS = {
     "Plats conservés": 15.00, "Onglets": 8.50, "Doublage japon": 22.00, "Charnières toile": 14.00,
     "Conservation de gardes": 12.00, "Couture sur nerfs": 35.00, "Couvrure sur nerf": 40.00,
@@ -208,7 +216,7 @@ else:
             st.subheader("6. Habillage")
             c_toi1, c_toi2 = st.columns(2)
             list_toile = ["Buckram", "Fantaisie", "Autre"]
-            with c_toi1: type_toile = st.selectbox("Type de toile", list_toile, index=list_toile.index(donnees_edition["type_toile"]) if donnees_edition and donnees_edition["type_toile"] in list_toile else 0)
+            with c_toi1: type_toile = st.selectbox("Type de toile", list_toile, index=list_toile.index(donnees_edition["type_toile"]) if donnees_edition& donnees_edition["type_toile"] in list_toile else 0)
             with c_toi2: couleur = st.selectbox("Couleur de la toile", options=liste_couleurs, index=liste_couleurs.index(donnees_edition["couleur"]) if donnees_edition and donnees_edition["couleur"] in liste_couleurs else 0)
 
             st.write("---")
@@ -228,12 +236,11 @@ else:
             st.subheader("8. Suppléments optionnels (Max 4)")
 
             def afficher_prix_indicatif(nom_supplement):
-                """Affiche le tarif sous la cellule si un supplément est sélectionné"""
                 if nom_supplement and nom_supplement != "-- Aucun --":
                     prix = PRIX_SUPPLEMENTS.get(nom_supplement, 0.00)
                     st.caption(f"💰 *Prix indicatif : {prix:.2f} €*")
                 else:
-                    st.caption(" ") # Conserve l'alignement vertical
+                    st.caption(" ")
 
             sup1_def = donnees_edition["supplement_1"] if (donnees_edition and donnees_edition["supplement_1"] in OPTIONS_SUPPLEMENTS) else "-- Aucun --"
             sup2_def = donnees_edition["supplement_2"] if (donnees_edition and donnees_edition["supplement_2"] in OPTIONS_SUPPLEMENTS) else "-- Aucun --"
@@ -253,7 +260,6 @@ else:
                 supplement_4 = st.selectbox("Supplément 4", options=liste_choix_sups, index=liste_choix_sups.index(sup4_def))
                 afficher_prix_indicatif(supplement_4)
 
-            # Affichage dynamique du cumul pour la clarté du devis d'atelier
             total_sups = sum([PRIX_SUPPLEMENTS.get(s, 0.0) for s in [supplement_1, supplement_2, supplement_3, supplement_4]])
             if total_sups > 0:
                 st.info(f"📊 **Sous-total suppléments pour ce livre :** {total_sups:.2f} €")
@@ -282,11 +288,23 @@ else:
             livres_train = recuperer_livres_du_train(nom_client_valide, numero_train)
             if livres_train:
                 df_train = pd.DataFrame(livres_train, columns=["N° Livre", "Nature", "État", "Largeur", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"])
+                
                 reponse_selection = st.dataframe(df_train, use_container_width=True, hide_index=True, selection_mode="single-row", on_select="rerun")
+                
                 if reponse_selection and "rows" in reponse_selection.get("selection", {}):
                     lignes_selectionnees = reponse_selection["selection"]["rows"]
                     if lignes_selectionnees:
-                        st.session_state.livre_selectionne = int(df_train.iloc[lignes_selectionnees[0]]["N° Livre"])
-                        st.rerun()
+                        livre_id = int(df_train.iloc[lignes_selectionnees[0]]["N° Livre"])
+                        st.session_state.livre_selectionne = livre_id
+                        
+                        st.write("---")
+                        st.write(f"⚙️ **Action sur le Livre N° {livre_id} :**")
+                        
+                        if st.button(f"🗑️ Supprimer définitivement le Livre N° {livre_id}", type="secondary", use_container_width=True):
+                            if supprimer_livre_specifique(nom_client_valide, numero_train, livre_id):
+                                st.success(f"❌ Le livre N° {livre_id} a été supprimé.")
+                                if "livre_selectionne" in st.session_state:
+                                    del st.session_state.livre_selectionne
+                                st.rerun()
             else: 
                 st.info("Aucun livre encore enregistré dans ce Train.")

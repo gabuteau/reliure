@@ -3,13 +3,7 @@ import psycopg2
 import psycopg2.extras
 
 def obtenir_connexion():
-    return psycopg2.connect(
-        host=st.secrets["postgres"]["host"],
-        database=st.secrets["postgres"]["database"],
-        user=st.secrets["postgres"]["user"],
-        password=st.secrets["postgres"]["password"],
-        port=st.secrets["postgres"]["port"]
-    )
+    return psycopg2.connect(st.secrets["PG_URL"])
 
 def initialiser_tables_globales():
     conn = obtenir_connexion()

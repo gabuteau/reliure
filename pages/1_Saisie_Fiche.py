@@ -5,7 +5,9 @@ import pandas as pd
 from datetime import datetime
 
 def obtenir_connexion():
-    return psycopg2.connect(st.secrets["PG_URL"])
+    conn = psycopg2.connect(st.secrets["PG_URL"])
+    conn.set_client_encoding('UTF8')
+    return conn
 
 def determiner_categorie_format(l, h):
     if l <= 115 and h <= 185: return "115 x 185 (In 12)"

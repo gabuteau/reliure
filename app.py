@@ -1,32 +1,36 @@
 import streamlit as st
-from supabase import create_client
-
-def verifier_connexion_supabase():
-    try:
-        create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-        return True
-    except Exception:
-        return False
 
 st.set_page_config(
     page_title="Gestion Reliure & Atelier",
     page_icon="📚",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Masquage du fichier app.py dans la liste de navigation native de la barre latérale
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebarNavItems"] li:first-child {
+            display: none;
+        }
+    </style>
+    """,
+    unsafe_html=True
 )
 
 # --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
-    st.image("logo_reliure.jpg", use_container_width=True) if "logo_reliure.jpg" else st.title("📚 Reliure")
-    st.write("---")
-    st.markdown("### 🖥️ État du Système")
+    # Logo tout en haut à gauche : un clic dessus recharge la page d'accueil (app.py)
+    if st.button("🖼️", key="logo_home", help="Retour à l'accueil", use_container_width=False):
+        st.switch_page("app.py")
     
-    if verifier_connexion_supabase():
-        st.success("⚡ Connecté à Supabase Cloud")
-    else:
-        st.error("❌ Erreur de liaison Base de données")
-        
+    # Remplacement du bouton texte par l'image si elle est présente, positionnée juste sous le bouton cliquable
+    if "logo_reliure.jpg":
+        st.image("logo_reliure.jpg", use_container_width=True)
+    
     st.write("---")
-    st.caption("Système de Gestion d'Atelier v2.1 — 2026")
+    st.caption("Système de Gestion d'Atelier — 2026")
 
 # --- CORPS PRINCIPAL ---
 st.title("📚 Système de Gestion de l'Atelier de Reliure")
@@ -38,7 +42,7 @@ st.info("💡 **Rappel d'impression** : Pour imprimer une fiche de garde ou une 
 
 st.write("---")
 
-# Répartition des modules en 3 colonnes thématiques pour une meilleure clarté
+# Répartition des modules en 3 colonnes thématiques
 col_prod, col_tarifs, col_admin = st.columns(3)
 
 with col_prod:
@@ -79,7 +83,7 @@ with col_admin:
         Gérez l'annuaire de vos clients, configurez les fiches de contacts et initialisez automatiquement leurs paramètres de facturation.
         """)
         st.write(" ")
-        st.write(" ") # Alignement visuel
+        st.write(" ") 
         
         if st.button("👥 Annuaire & Fiches Clients", key="nav_clients", use_container_width=True):
             st.switch_page("pages/2_Clients.py")

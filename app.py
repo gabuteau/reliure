@@ -10,7 +10,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- INJECTION CSS (STRUCTURE SIDEBAR & LOGO) ---
+# --- INJECTION CSS (STRUCTURE SIDEBAR & LOGO + TRICHE NOM) ---
 st.html(
     """
     <style>
@@ -29,6 +29,20 @@ st.html(
         /* Positionne le menu de navigation natif sous le logo */
         [data-testid="stSidebarNav"] {
             order: 2;
+        }
+        
+        /* TRICHE : Masque le texte du premier lien (app) et injecte le nouveau texte */
+        [data-testid="stSidebarNavItems"] li:first-child a span {
+            visibility: hidden;
+            position: relative;
+        }
+        [data-testid="stSidebarNavItems"] li:first-child a span::after {
+            content: "Menu principal";
+            visibility: visible;
+            position: absolute;
+            left: 0;
+            top: 0;
+            white-space: nowrap;
         }
         
         /* Positionne le pied de page tout en bas */

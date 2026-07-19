@@ -1,6 +1,8 @@
 import streamlit as st
 from supabase import create_client
 from datetime import datetime
+import base64
+import os
 
 def obtenir_client_supabase():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
@@ -33,6 +35,13 @@ def recuperer_tous_les_livres_du_train(client, train):
     reponse = supabase.table("fiches_livres").select("*").eq("nom_client", client.strip()).eq("numero_train", train.strip()).order("numero_livre").execute()
     return reponse.data if reponse.data else []
 
+def encoder_image_base64(chemin_image):
+    """Encode une image locale en base64 pour l'intégrer proprement dans le HTML"""
+    if os.path.exists(chemin_image):
+        with open(chemin_image, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode()
+    return ""
+
 # Configuration de la page
 st.set_page_config(page_title="Impression Garde", layout="centered")
 
@@ -54,6 +63,7 @@ st.html("""
             background-color: #fff !important;
             page-break-after: always !important;
             margin-bottom: 0px !important;
+            position: relative !important;
         }
     }
     .print-container {
@@ -65,6 +75,14 @@ st.html("""
         border-radius: 8px;
         margin-top: 20px;
         margin-bottom: 30px;
+        position: relative;
+    }
+    .logo-header {
+        position: absolute;
+        top: 25px;
+        right: 30px;
+        max-height: 55px;
+        width: auto;
     }
     .print-box {
         border: 1px solid #ccc;
@@ -99,6 +117,11 @@ st.html("""
 
 st.title("🖨️ Génération — Impression Garde")
 
+# Tentative de chargement du logo Reliure Devel (à placer à la racine de votre projet ou dans un dossier accessible)
+chemin_logo = "logo_reliure.jpg"  # Modifiez le nom ou format (png/jpg) si nécessaire
+logo_b64 = encoder_image_base64(chemin_logo)
+balise_logo_html = f'<img src="data:image/jpeg;base64,{logo_b64}" class="logo-header">' if logo_b64 else ''
+
 # --- Zone de sélection ---
 with st.container(border=True):
     st.subheader("Sélection du document")
@@ -121,7 +144,7 @@ with st.container(border=True):
 
 st.write("---")
 
-def generer_bloc_html_fiche(data, date_str):
+def generer_bloc_html_fiche(data, date_str, logo_html):
     rogner_str = "OUI" if data.get('ne_pas_rogner') else "NON"
     scanne_str = "OUI" if data.get('repro_scanne') else "NON"
     report_str = "OUI" if data.get('repro_report') else "NON"
@@ -156,6 +179,7 @@ def generer_bloc_html_fiche(data, date_str):
 
     return f"""
     <div class="print-container">
+        {logo_html}
         <h2 style="text-align: center; text-decoration: underline; margin-bottom: 30px;">- Informations sur la page de garde -</h2>
         
         <div class="print-row">
@@ -164,7 +188,7 @@ def generer_bloc_html_fiche(data, date_str):
                 <span class="field-label">N° du Train :</span> <span class="field-value">{data.get('numero_train')}</span><br>
                 <span class="field-label">N° du Livre :</span> <span class="field-value">{data.get('numero_livre')}</span>
             </div>
-            <div class="print-col" style="text-align: right;">
+            <div class="print-col" style="text-align: right; margin-right: 120px;">
                 <span class="field-label">Date :</span> <span class="field-value">{date_str}</span>
             </div>
         </div>
@@ -235,8 +259,7 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
             
             html_global = ""
             for idx, fiche in enumerate(liste_fiches):
-                html_global += generer_bloc_html_fiche(fiche, date_commune)
-                # Insertion d'une balise de saut de page matérielle stricte entre les fiches, sauf après la toute dernière
+                html_global += generer_bloc_html_fiche(fiche, date_commune, balise_logo_html)
                 if idx < len(liste_fiches) - 1:
                     html_global += '<div style="page-break-after: always; break-after: page;"></div>'
                 
@@ -249,6 +272,6 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
         fiche_unique = recuperer_livre_complet(client_sel, train_sel, int(livre_sel))
         if fiche_unique:
             st.info("💡 **Mode Fiche Unique** : Prête pour l'impression (**Ctrl + P**).")
-            st.html(generer_bloc_html_fiche(fiche_unique, date_commune))
+            st.html(generer_bloc_html_fiche(fiche_unique, date_commune, balise_logo_html))
         else:
             st.error("Impossible de charger cette fiche de livre.")

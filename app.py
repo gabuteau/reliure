@@ -4,7 +4,7 @@ import os
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
-    page_title="Accueil",
+    page_title="Menu principal",
     page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -59,8 +59,8 @@ with st.sidebar:
             data_logo = base64.b64encode(f.read()).decode()
         st.html(f'<a href="/" target="_self" class="logo-link"><img src="data:image/jpeg;base64,{data_logo}" style="width: 100%;"></a>')
     else:
-        if st.button("📚 Accueil Atelier", key="nav_home_fallback", use_container_width=True):
-            st.switch_page("app.py")
+        if st.button("📚 Menu principal", key="nav_home_fallback", use_container_width=True):
+            st.switch_page("Menu_principal.py")
     st.html('</div>')
             
     # 2. Le menu de navigation natif s'intercale ici (Ordre 2)

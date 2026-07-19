@@ -1,4 +1,6 @@
 import streamlit as st
+import base64
+import os
 
 st.set_page_config(
     page_title="Gestion Reliure & Atelier",
@@ -7,12 +9,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Injection propre du CSS pour masquer le premier élément de navigation (app.py)
+# Masquage de app.py dans la navigation et suppression des marges du bouton logo personnalisé
 st.html(
     """
     <style>
         [data-testid="stSidebarNavItems"] li:first-child {
             display: none;
+        }
+        .logo-link {
+            display: block;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .logo-link:hover {
+            opacity: 0.8;
         }
     </style>
     """
@@ -20,17 +31,21 @@ st.html(
 
 # --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
-    # Logo tout en haut à gauche : un clic dessus recharge la page d'accueil (app.py)
-    if st.button("🖼️", key="logo_home", help="Retour à l'accueil", use_container_width=False):
-        st.switch_page("app.py")
-    
-    # Remplacement du bouton texte par l'image si elle est présente
-    if "logo_reliure.jpg":
-        st.image("logo_reliure.jpg", use_container_width=True)
-    
+    # Encodage de l'image en Base64 pour l'intégrer proprement dans le lien HTML
+    chemin_logo = "logo_reliure.jpg"
+    if os.path.exists(chemin_logo):
+        with open(chemin_logo, "rb") as f:
+            data_logo = base64.b64encode(f.read()).decode()
+        
+        # Le logo est encapsulé dans un lien pointant vers l'URL de l'application (ce qui recharge app.py)
+        st.html(f'<a href="/" target="_self" class="logo-link"><img src="data:image/jpeg;base64,{data_logo}" style="width: 100%;"></a>')
+    else:
+        # Solution de secours si l'image est manquante
+        if st.button("📚 Accueil Atelier", key="nav_home_fallback", use_container_width=True):
+            st.switch_page("app.py")
+            
     st.write("---")
     st.caption("Système de Gestion d'Atelier — 2026")
-
 
 # --- CORPS PRINCIPAL ---
 st.title("📚 Système de Gestion de l'Atelier de Reliure")

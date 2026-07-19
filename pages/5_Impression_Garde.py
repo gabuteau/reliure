@@ -3,11 +3,12 @@ from supabase import create_client
 from datetime import datetime
 import io
 
-# Import de ReportLab pour la génération du PDF A4
-from reportlab.lib.pagesizes import a4
+# Remplacement des imports ReportLab pour éviter l'ImportError
+from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
 
 def obtenir_client_supabase():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])

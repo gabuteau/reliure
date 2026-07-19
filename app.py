@@ -10,7 +10,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- INJECTION CSS (STRUCTURE SIDEBAR & LOGO + TRICHE NOM) ---
+# --- INJECTION CSS (STRUCTURE SIDEBAR & LOGO + TRICHE NOM RECTIFIÉE) ---
 st.html(
     """
     <style>
@@ -31,12 +31,12 @@ st.html(
             order: 2;
         }
         
-        /* TRICHE : Masque le texte du premier lien (app) et injecte le nouveau texte */
-        [data-testid="stSidebarNavItems"] li:first-child a span {
+        /* TRICHE : Remplacement propre du texte "app" par "Menu principal" */
+        [data-testid="stSidebarNavItems"] li:first-child a [data-testid="stSidebarNavLinkWrapper"] {
             visibility: hidden;
             position: relative;
         }
-        [data-testid="stSidebarNavItems"] li:first-child a span::after {
+        [data-testid="stSidebarNavItems"] li:first-child a [data-testid="stSidebarNavLinkWrapper"]::after {
             content: "Menu principal";
             visibility: visible;
             position: absolute;
@@ -62,7 +62,6 @@ st.html(
     </style>
     """
 )
-
 # --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
     # 1. Zone du Logo (Ordre 1)

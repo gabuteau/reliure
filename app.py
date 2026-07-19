@@ -30,11 +30,11 @@ with col1:
     c_btn1, c_btn2 = st.columns(2)
     with c_btn1:
         if st.button("👉 Aller à Saisie de Fiche", key="nav_saisie", use_container_width=True):
-            st.switch_page("pages/1_Saisie_de_Fiche.py")
+            st.switch_page("pages/1_Saisie_Fiche.py")
     with c_btn2:
         # Remplacer par le nom exact de votre fichier de titrage
         if st.button("👉 Aller au Titrage", key="nav_titrage", use_container_width=True):
-            st.switch_page("pages/2_Titrage.py")
+            st.switch_page("pages/4_Titrage.py")
 
 with col2:
     st.subheader("🖨️ Production & Impression")
@@ -50,7 +50,7 @@ with col2:
     with c_btn4:
         # Remplacer par le nom exact de votre fichier client
         if st.button("👥 Aller aux Fiches Clients", key="nav_clients", use_container_width=True):
-            st.switch_page("pages/6_Fiches_Clients.py")
+            st.switch_page("pages/2_Clients.py")
 
 st.write("---")
 st.info("💡 **Rappel d'utilisation** : Pour toute impression de document (Fiche de garde), utilisez le raccourci natif de votre navigateur **Ctrl + P** (ou **Cmd + P** sur Mac) une fois sur la page concernée.")

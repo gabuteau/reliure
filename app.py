@@ -1,4 +1,12 @@
 import streamlit as st
+from supabase import create_client
+
+def verifier_connexion_supabase():
+    try:
+        create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+        return True
+    except Exception:
+        return False
 
 st.set_page_config(
     page_title="Gestion Reliure & Atelier",
@@ -6,51 +14,74 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📚 Système de Gestion de l'Atelier de Reliure")
-st.write("---")
-
-st.markdown("""
-### Bienvenue dans votre outil de gestion et de suivi de production
-Ce système cloud centralise l'ensemble de l'activité de l'atelier, de la prise de commande à l'impression des fiches techniques de fabrication. Usez du menu latéral à gauche ou des boutons ci-dessous pour naviguer entre les différents modules.
-""")
-
-st.write("---")
-
-# Cartes de présentation des modules disponibles
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("📝 Saisie & Suivi")
-    st.markdown("""
-    * **Saisie de Fiche** : Module principal permettant d'enregistrer un nouveau livre ou de modifier un volume existant. Il calcule en temps réel le sous-total des suppléments et détecte automatiquement le gabarit du format selon les dimensions saisies.
-    * **Titrage (Système 3)** : Permet de composer la maquette de titrage spécifique d'un volume et de configurer la grille de lettrage.
-    """)
+# --- BARRE LATÉRALE (SIDEBAR) ---
+with st.sidebar:
+    st.image("logo_reliure.jpg", use_container_width=True) if "logo_reliure.jpg" else st.title("📚 Reliure")
+    st.write("---")
+    st.markdown("### 🖥️ État du Système")
     
-    # Boutons de navigation (Ajustez le nom exact de vos fichiers de pages si nécessaire)
-    c_btn1, c_btn2 = st.columns(2)
-    with c_btn1:
-        if st.button("👉 Aller à Saisie de Fiche", key="nav_saisie", use_container_width=True):
+    if verifier_connexion_supabase():
+        st.success("⚡ Connecté à Supabase Cloud")
+    else:
+        st.error("❌ Erreur de liaison Base de données")
+        
+    st.write("---")
+    st.caption("Système de Gestion d'Atelier v2.1 — 2026")
+
+# --- CORPS PRINCIPAL ---
+st.title("📚 Système de Gestion de l'Atelier de Reliure")
+st.markdown("### Outil centralisé de suivi de production et d'administration")
+st.write("---")
+
+# Zone de notifications rapides / Astuces
+st.info("💡 **Rappel d'impression** : Pour imprimer une fiche de garde ou une fiche technique d'atelier, utilisez le raccourci clavier natif de votre navigateur : **Ctrl + P** (ou **Cmd + P** sur Mac).")
+
+st.write("---")
+
+# Répartition des modules en 3 colonnes thématiques pour une meilleure clarté
+col_prod, col_tarifs, col_admin = st.columns(3)
+
+with col_prod:
+    with st.container(border=True):
+        st.markdown("### 🛠️ Production & Suivi")
+        st.markdown("""
+        Enregistrez les caractéristiques des ouvrages, gérez les étapes de fabrication et éditez vos fiches d'atelier.
+        """)
+        st.write(" ")
+        
+        if st.button("📝 Saisie & Suivi de Fiche", key="nav_saisie", use_container_width=True, type="primary"):
             st.switch_page("pages/1_Saisie_Fiche.py")
-    with c_btn2:
-        # Remplacer par le nom exact de votre fichier de titrage
-        if st.button("👉 Aller au Titrage", key="nav_titrage", use_container_width=True):
+            
+        if st.button("🖨️ Impression Fiche Garde", key="nav_print", use_container_width=True):
+            st.switch_page("pages/5_Impression_Garde.py")
+            
+        if st.button("📟 Composition Titrage (S3)", key="nav_titrage", use_container_width=True):
             st.switch_page("pages/4_Titrage.py")
 
-with col2:
-    st.subheader("🖨️ Production & Impression")
-    st.markdown("""
-    * **Impression Garde** : Génère la fiche technique d'atelier au format standardisé, conforme au modèle manuscrit. Permet d'imprimer à la volée une fiche unitaire ou de lancer l'impression groupée de tout un train (avec sauts de page automatiques).
-    * **Fiches Clients** : Permet de gérer la liste des donneurs d'ordres et de configurer leurs paramètres de facturation par défaut.
-    """)
-    
-    c_btn3, c_btn4 = st.columns(2)
-    with c_btn3:
-        if st.button("🖨️ Aller à Impression Garde", key="nav_print", use_container_width=True):
-            st.switch_page("pages/5_Impression_Garde.py")
-    with c_btn4:
-        # Remplacer par le nom exact de votre fichier client
-        if st.button("👥 Aller aux Fiches Clients", key="nav_clients", use_container_width=True):
+with col_tarifs:
+    with st.container(border=True):
+        st.markdown("### 📊 Grilles Tarifaires")
+        st.markdown("""
+        Consultez et ajustez les prix des prestations et des suppléments selon vos deux modes de visualisation préférés.
+        """)
+        st.write(" ")
+        
+        if st.button("🏷️ Ajustement par Client (Matrice)", key="nav_tarifs_matrice", use_container_width=True):
+            st.switch_page("pages/3_Tarifs.py")
+            
+        if st.button("⚙️ Recherche & Filtres (Liste)", key="nav_tarifs_liste", use_container_width=True):
+            st.switch_page("pages/6_Configuration_Tarifs.py")
+
+with col_admin:
+    with st.container(border=True):
+        st.markdown("### 🏢 Donneurs d'Ordres")
+        st.markdown("""
+        Gérez l'annuaire de vos clients, configurez les fiches de contacts et initialisez automatiquement leurs paramètres de facturation.
+        """)
+        st.write(" ")
+        st.write(" ") # Alignement visuel
+        
+        if st.button("👥 Annuaire & Fiches Clients", key="nav_clients", use_container_width=True):
             st.switch_page("pages/2_Clients.py")
 
 st.write("---")
-st.info("💡 **Rappel d'utilisation** : Pour toute impression de document (Fiche de garde), utilisez le raccourci natif de votre navigateur **Ctrl + P** (ou **Cmd + P** sur Mac) une fois sur la page concernée.")

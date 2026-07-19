@@ -15,14 +15,18 @@ def charger_grille_tarifs():
         st.error(f"Erreur lors du chargement des tarifs : {e}")
         return []
 
-def mettre_a_jour_tarif(id_tarif, champ_prix, nouveau_prix):
+# Modification de la fonction pour cibler par le trio unique au lieu d'un ID unique
+def mettre_a_jour_tarif(nom_client, designation, format_nom, champ_prix, nouveau_prix):
     supabase = obtenir_client_supabase()
     donnees_maj = {champ_prix: nouveau_prix}
     
     try:
-        # On essaie d'utiliser le nom détecté pour l'ID, sinon 'id' par défaut
-        id_colonne = champ_id if 'champ_id' in globals() else "id"
-        supabase.table("tarifs_clients").update(donnees_maj).eq(id_colonne, id_tarif).execute()
+        supabase.table("tarifs_clients")\
+            .update(donnees_maj)\
+            .eq("nom_client", nom_client)\
+            .eq("designation", designation)\
+            .eq("format_nom", format_nom)\
+            .execute()
         return True
     except Exception as e:
         st.error(f"Erreur lors de la mise à jour : {e}")
@@ -40,21 +44,11 @@ if tarifs_bruts:
     # Conversion en DataFrame standard
     df_tarifs = pd.DataFrame(tarifs_bruts)
     
-    # Détection dynamique des colonnes
-    colonnes_disponibles = df_tarifs.columns.tolist()
-    champ_prix = next((c for c in ["prix_unitaire", "prix", "montant", "valeur"] if c in colonnes_disponibles), None)
-    champ_libelle = next((c for c in ["libelle", "designation", "nom", "prestation"] if c in colonnes_disponibles), None)
-    champ_client = next((c for c in ["nom_client", "client"] if c in colonnes_disponibles), None)
-    champ_format = next((c for c in ["format_nom", "format_livre", "format", "taille"] if c in colonnes_disponibles), None)
-    champ_id = next((c for c in ["id", "ID", "id_tarif", "id_prix"] if c in colonnes_disponibles), None)
-    
-    if not champ_prix:
-        st.error(f"Impossible de trouver la colonne du prix parmi : {colonnes_disponibles}")
-        st.stop()
-        
-    if not champ_id:
-        st.error(f"Impossible d'identifier la colonne clé primaire (ID) parmi : {colonnes_disponibles}")
-        st.stop()
+    # Assignation fixe basée sur tes colonnes réelles
+    champ_client = "nom_client"
+    champ_libelle = "designation"
+    champ_format = "format_nom"
+    champ_prix = "montant"
 
     # --- SECTION DES FILTRES (3 COLONNES) ---
     st.write("### 🔍 Filtrer la grille tarifaire")
@@ -63,7 +57,7 @@ if tarifs_bruts:
     
     # 1. Filtre par Client
     client_selectionne = "Tous les clients"
-    if champ_client and champ_client in df_tarifs.columns:
+    if champ_client in df_tarifs.columns:
         liste_clients = sorted(df_tarifs[champ_client].dropna().unique().tolist())
         index_defaut = liste_clients.index("Invelac") if "Invelac" in liste_clients else 0
         
@@ -82,7 +76,7 @@ if tarifs_bruts:
 
     # 2. Filtre par Prestation
     prestation_selectionnee = "Toutes les prestations"
-    if champ_libelle and champ_libelle in df_tarifs.columns:
+    if champ_libelle in df_tarifs.columns:
         liste_prestations = sorted(df_etape1[champ_libelle].dropna().unique().tolist())
         
         with col_filtre2:
@@ -99,7 +93,7 @@ if tarifs_bruts:
 
     # 3. Filtre par Format
     format_selectionne = "Tous les formats"
-    if champ_format and champ_format in df_tarifs.columns:
+    if champ_format in df_tarifs.columns:
         liste_formats = sorted(df_etape2[champ_format].dropna().unique().tolist())
         
         with col_filtre3:
@@ -117,50 +111,43 @@ if tarifs_bruts:
     st.write("---")
     st.subheader(f"📈 Grille affichée : {df_filtré.shape[0]} ligne(s) trouvée(s)")
 
-    # Configuration dynamique des colonnes pour l'éditeur
+    # Configuration des colonnes pour l'éditeur
     configuration_colonnes = {
-        champ_id: None  # Masque dynamiquement la colonne identifiant peu importe son nom exact
+        champ_prix: st.column_config.NumberColumn("Prix (€)", min_value=0.0, format="%.2f €", required=True),
+        champ_libelle: st.column_config.TextColumn("Prestation", disabled=True),
+        champ_client: st.column_config.TextColumn("Client", disabled=True),
+        champ_format: st.column_config.TextColumn("Format", disabled=True)
     }
-    
-    for col in colonnes_disponibles:
-        if col == champ_prix:
-            configuration_colonnes[col] = st.column_config.NumberColumn("Prix (€)", min_value=0.0, format="%.2f €", required=True)
-        elif col == champ_libelle:
-            configuration_colonnes[col] = st.column_config.TextColumn("Prestation", disabled=True)
-        elif col == champ_client:
-            configuration_colonnes[col] = st.column_config.TextColumn("Client", disabled=True)
-        elif col == champ_format:
-            configuration_colonnes[col] = st.column_config.TextColumn("Format", disabled=True)
-        elif col != champ_id:
-            configuration_colonnes[col] = st.column_config.TextColumn(col, disabled=True)
             
-    # Affichage de l'éditeur. On récupère directement l'état des modifications via st.session_state
+    # Affichage de l'éditeur
     st.data_editor(
         df_filtré,
         column_config=configuration_colonnes,
         use_container_width=True,
         hide_index=True,
-        key="editeur_tarifs_trois_filtres_robuste"
+        key="editeur_tarifs_composite"
     )
     
     if st.button("💾 Enregistrer la nouvelle grille de tarifs", type="primary", use_container_width=True):
-        # Récupération des lignes éditées depuis le state de Streamlit
-        donnees_state = st.session_state["editeur_tarifs_trois_filtres_robuste"]
+        donnees_state = st.session_state["editeur_tarifs_composite"]
         lignes_modifiees = donnees_state.get("edited_rows", {})
         
         if lignes_modifiees:
             changements_effectues = 0
             
-            # lignes_modifiees contient des dictionnaires du type : { index_visuel: { champ_prix: nouveau_prix } }
             for index_visuel, changements in lignes_modifiees.items():
                 if champ_prix in changements:
                     nouveau_prix = changements[champ_prix]
                     
-                    # On retrouve la ligne d'origine grâce à son index de position dans le tableau filtré
+                    # On extrait la ligne d'origine pour obtenir le trio d'identification
                     ligne_originale = df_filtré.iloc[index_visuel]
-                    id_base_de_donnees = ligne_originale[champ_id]
                     
-                    succes = mettre_a_jour_tarif(id_base_de_donnees, champ_prix, nouveau_prix)
+                    val_client = ligne_originale[champ_client]
+                    val_prestation = ligne_originale[champ_libelle]
+                    val_format = ligne_originale[champ_format]
+                    
+                    # Envoi des 3 filtres pour la mise à jour ciblée
+                    succes = mettre_a_jour_tarif(val_client, val_prestation, val_format, champ_prix, nouveau_prix)
                     if succes:
                         changements_effectues += 1
             

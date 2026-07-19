@@ -48,32 +48,51 @@ if tarifs_bruts:
         st.error(f"Impossible de trouver la colonne du prix parmi : {colonnes_disponibles}")
         st.stop()
 
-    # --- AJOUT DU FILTRE PAR CLIENT ---
-    st.write("### 🔍 Choisir un client pour afficher sa grille")
+    # --- SECTION DES FILTRES ---
+    st.write("### 🔍 Filtrer la grille tarifaire")
     
-    # On récupère la liste unique des clients présents dans la table tarif
+    # On crée deux colonnes côte à côte pour les filtres
+    col_filtre1, col_filtre2 = st.columns(2)
+    
+    # 1. Filtre par Client
+    client_selectionne = "Tous les clients"
     if champ_client and champ_client in df_tarifs.columns:
-        liste_clients = sorted(df_tarifs[champ_client].unique().tolist())
-        
-        # On essaie de pré-sélectionner Invelac par défaut s'il est dans la liste
+        liste_clients = sorted(df_tarifs[champ_client].dropna().unique().tolist())
         index_defaut = liste_clients.index("Invelac") if "Invelac" in liste_clients else 0
         
-        client_selectionne = st.selectbox(
-            "Filtrer par client :", 
-            options=["Tous les clients"] + liste_clients,
-            index=index_defaut + 1 if "Invelac" in liste_clients else 0
-        )
-        
-        # Application du filtre sur le DataFrame
-        if client_selectionne != "Tous les clients":
-            df_filtré = df_tarifs[df_tarifs[champ_client] == client_selectionne].copy()
-        else:
-            df_filtré = df_tarifs.copy()
+        with col_filtre1:
+            client_selectionne = st.selectbox(
+                "Filtrer par client :", 
+                options=["Tous les clients"] + liste_clients,
+                index=index_defaut + 1 if "Invelac" in liste_clients else 0
+            )
+            
+    # Application du premier filtre (Client) pour restreindre aussi la liste des prestations
+    if client_selectionne != "Tous les clients":
+        df_etape1 = df_tarifs[df_tarifs[champ_client] == client_selectionne]
     else:
-        df_filtré = df_tarifs.copy()
-        st.warning("Impossible de filtrer : colonne client introuvable dans la table.")
+        df_etape1 = df_tarifs
 
-    st.subheader(f"Grille des prix actuels — {client_selectionne}")
+    # 2. Filtre par Prestation
+    prestation_selectionnee = "Toutes les prestations"
+    if champ_libelle and champ_libelle in df_tarifs.columns:
+        # On propose uniquement les prestations disponibles selon le filtre client choisi
+        liste_prestations = sorted(df_etape1[champ_libelle].dropna().unique().tolist())
+        
+        with col_filtre2:
+            prestation_selectionnee = st.selectbox(
+                "Filtrer par prestation :",
+                options=["Toutes les prestations"] + liste_prestations
+            )
+
+    # Application du second filtre (Prestation)
+    if prestation_selectionnee != "Toutes les prestations":
+        df_filtré = df_etape1[df_etape1[champ_libelle] == prestation_selectionnee].copy()
+    else:
+        df_filtré = df_etape1.copy()
+
+    st.write("---")
+    st.subheader(f"📈 Grille : {client_selectionne} ➔ {prestation_selectionnee}")
 
     # Configuration dynamique des colonnes pour l'éditeur
     configuration_colonnes = {
@@ -90,19 +109,19 @@ if tarifs_bruts:
         elif col != "id":
             configuration_colonnes[col] = st.column_config.TextColumn(col, disabled=True)
             
-    # Affichage du tableau filtré
+    # Affichage du tableau doublement filtré
     df_edite = st.data_editor(
         df_filtré,
         column_config=configuration_colonnes,
         use_container_width=True,
         hide_index=True,
-        key="editeur_tarifs_filtres"
+        key="editeur_tarifs_multi_filtres"
     )
     
     if st.button("💾 Enregistrer la nouvelle grille de tarifs", type="primary", use_container_width=True):
         changements_effectues = 0
         
-        # On compare les lignes du tableau filtré avant et après édition
+        # On compare les lignes du tableau affiché avant et après édition
         for (_, ligne_originale), (_, ligne_modifiee) in zip(df_filtré.iterrows(), df_edite.iterrows()):
             prix_orig = float(ligne_originale[champ_prix]) if ligne_originale[champ_prix] is not None else 0.0
             prix_mod = float(ligne_modifiee[champ_prix]) if ligne_modifiee[champ_prix] is not None else 0.0
@@ -113,7 +132,7 @@ if tarifs_bruts:
                     changements_effectues += 1
         
         if changements_effectues > 0:
-            st.success(f"🎉 Grille mise à jour ! {changements_effectues} tarif(s) modifié(s) pour {client_selectionne}.")
+            st.success(f"🎉 Grille mise à jour ! {changements_effectues} tarif(s) modifié(s).")
             st.rerun()
         else:
             st.info("Aucun changement de tarif n'a été détecté.")

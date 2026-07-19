@@ -43,16 +43,16 @@ if tarifs_bruts:
     champ_prix = next((c for c in ["prix_unitaire", "prix", "montant", "valeur"] if c in colonnes_disponibles), None)
     champ_libelle = next((c for c in ["libelle", "designation", "nom", "prestation"] if c in colonnes_disponibles), None)
     champ_client = next((c for c in ["nom_client", "client"] if c in colonnes_disponibles), None)
+    champ_format = next((c for c in ["format", "taille", "dimensions"] if c in colonnes_disponibles), None)
     
     if not champ_prix:
         st.error(f"Impossible de trouver la colonne du prix parmi : {colonnes_disponibles}")
         st.stop()
 
-    # --- SECTION DES FILTRES ---
+    # --- SECTION DES FILTRES (3 COLONNES) ---
     st.write("### 🔍 Filtrer la grille tarifaire")
     
-    # On crée deux colonnes côte à côte pour les filtres
-    col_filtre1, col_filtre2 = st.columns(2)
+    col_filtre1, col_filtre2, col_filtre3 = st.columns(3)
     
     # 1. Filtre par Client
     client_selectionne = "Tous les clients"
@@ -62,12 +62,12 @@ if tarifs_bruts:
         
         with col_filtre1:
             client_selectionne = st.selectbox(
-                "Filtrer par client :", 
+                "Client :", 
                 options=["Tous les clients"] + liste_clients,
                 index=index_defaut + 1 if "Invelac" in liste_clients else 0
             )
             
-    # Application du premier filtre (Client) pour restreindre aussi la liste des prestations
+    # Application du filtre Client
     if client_selectionne != "Tous les clients":
         df_etape1 = df_tarifs[df_tarifs[champ_client] == client_selectionne]
     else:
@@ -76,23 +76,41 @@ if tarifs_bruts:
     # 2. Filtre par Prestation
     prestation_selectionnee = "Toutes les prestations"
     if champ_libelle and champ_libelle in df_tarifs.columns:
-        # On propose uniquement les prestations disponibles selon le filtre client choisi
         liste_prestations = sorted(df_etape1[champ_libelle].dropna().unique().tolist())
         
         with col_filtre2:
             prestation_selectionnee = st.selectbox(
-                "Filtrer par prestation :",
+                "Prestation :",
                 options=["Toutes les prestations"] + liste_prestations
             )
 
-    # Application du second filtre (Prestation)
+    # Application du filtre Prestation
     if prestation_selectionnee != "Toutes les prestations":
-        df_filtré = df_etape1[df_etape1[champ_libelle] == prestation_selectionnee].copy()
+        df_etape2 = df_etape1[df_etape1[champ_libelle] == prestation_selectionnee]
     else:
-        df_filtré = df_etape1.copy()
+        df_etape2 = df_etape1
+
+    # 3. Filtre par Format
+    format_selectionne = "Tous les formats"
+    if champ_format and champ_format in df_tarifs.columns:
+        # On propose uniquement les formats disponibles après les deux premiers filtres
+        liste_formats = sorted(df_etape2[champ_format].dropna().unique().tolist())
+        
+        with col_filtre3:
+            format_selectionne = st.selectbox(
+                "Format :",
+                options=["Tous les formats"] + [str(f) for f in liste_formats]
+            )
+
+    # Application du filtre Format final
+    if format_selectionne != "Tous les formats":
+        # Gestion du type (chaîne ou numérique) pour éviter les sauts de filtres
+        df_filtré = df_etape2[df_etape2[champ_format].astype(str) == format_selectionne].copy()
+    else:
+        df_filtré = df_etape2.copy()
 
     st.write("---")
-    st.subheader(f"📈 Grille : {client_selectionne} ➔ {prestation_selectionnee}")
+    st.subheader(f"📈 Grille affichée : {df_filtré.shape[0]} ligne(s) trouvée(s)")
 
     # Configuration dynamique des colonnes pour l'éditeur
     configuration_colonnes = {
@@ -106,22 +124,24 @@ if tarifs_bruts:
             configuration_colonnes[col] = st.column_config.TextColumn("Prestation", disabled=True)
         elif col == champ_client:
             configuration_colonnes[col] = st.column_config.TextColumn("Client", disabled=True)
+        elif col == champ_format:
+            configuration_colonnes[col] = st.column_config.TextColumn("Format", disabled=True)
         elif col != "id":
             configuration_colonnes[col] = st.column_config.TextColumn(col, disabled=True)
             
-    # Affichage du tableau doublement filtré
+    # Affichage du tableau triplement filtré
     df_edite = st.data_editor(
         df_filtré,
         column_config=configuration_colonnes,
         use_container_width=True,
         hide_index=True,
-        key="editeur_tarifs_multi_filtres"
+        key="editeur_tarifs_trois_filtres"
     )
     
     if st.button("💾 Enregistrer la nouvelle grille de tarifs", type="primary", use_container_width=True):
         changements_effectues = 0
         
-        # On compare les lignes du tableau affiché avant et après édition
+        # Comparaison et sauvegarde
         for (_, ligne_originale), (_, ligne_modifiee) in zip(df_filtré.iterrows(), df_edite.iterrows()):
             prix_orig = float(ligne_originale[champ_prix]) if ligne_originale[champ_prix] is not None else 0.0
             prix_mod = float(ligne_modifiee[champ_prix]) if ligne_modifiee[champ_prix] is not None else 0.0

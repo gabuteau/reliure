@@ -36,7 +36,6 @@ def recuperer_tous_les_livres_du_train(client, train):
     return reponse.data if reponse.data else []
 
 def encoder_image_base64(chemin_image):
-    """Encode une image locale en base64 pour l'intégrer proprement dans le HTML"""
     if os.path.exists(chemin_image):
         with open(chemin_image, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode()
@@ -80,7 +79,7 @@ st.html("""
     .logo-header {
         position: absolute;
         top: 25px;
-        right: 30px;
+        left: 30px;
         max-height: 55px;
         width: auto;
     }
@@ -117,8 +116,7 @@ st.html("""
 
 st.title("🖨️ Génération — Impression Garde")
 
-# Tentative de chargement du logo Reliure Devel (à placer à la racine de votre projet ou dans un dossier accessible)
-chemin_logo = "logo_reliure.jpg"  # Modifiez le nom ou format (png/jpg) si nécessaire
+chemin_logo = "logo_reliure.jpg"
 logo_b64 = encoder_image_base64(chemin_logo)
 balise_logo_html = f'<img src="data:image/jpeg;base64,{logo_b64}" class="logo-header">' if logo_b64 else ''
 
@@ -180,15 +178,16 @@ def generer_bloc_html_fiche(data, date_str, logo_html):
     return f"""
     <div class="print-container">
         {logo_html}
-        <h2 style="text-align: center; text-decoration: underline; margin-bottom: 30px;">- Informations sur la page de garde -</h2>
+        <!-- Marge haute augmentée pour laisser de la place au logo à gauche -->
+        <h2 style="text-align: center; text-decoration: underline; margin-top: 50px; margin-bottom: 30px;">- Informations sur la page de garde -</h2>
         
         <div class="print-row">
-            <div class="print-col">
+            <div class="print-col" style="margin-left: 10px;">
                 <span class="field-label">Client :</span> <span class="field-value">{data.get('nom_client')}</span><br>
                 <span class="field-label">N° du Train :</span> <span class="field-value">{data.get('numero_train')}</span><br>
                 <span class="field-label">N° du Livre :</span> <span class="field-value">{data.get('numero_livre')}</span>
             </div>
-            <div class="print-col" style="text-align: right; margin-right: 120px;">
+            <div class="print-col" style="text-align: right;">
                 <span class="field-label">Date :</span> <span class="field-value">{date_str}</span>
             </div>
         </div>
@@ -250,7 +249,6 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
     
     date_commune = datetime.now().strftime("%d/%m/%Y")
     
-    # CAS 1 : Impression globale de tout le train d'un coup
     if livre_sel == "🖨️ [TOUT LE TRAIN ENTIER]":
         liste_fiches = recuperer_tous_les_livres_du_train(client_sel, train_sel)
         
@@ -267,7 +265,6 @@ if client_sel != "-- Choisir --" and train_sel != "-- Choisir --" and 'livre_sel
         else:
             st.warning("Aucun livre trouvé dans ce train.")
             
-    # CAS 2 : Impression d'une fiche unitaire
     else:
         fiche_unique = recuperer_livre_complet(client_sel, train_sel, int(livre_sel))
         if fiche_unique:

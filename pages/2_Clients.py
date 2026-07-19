@@ -34,8 +34,30 @@ def enregistrer_client(nom, adresse, contact, notes):
             # 2. Si oui, on fait une mise à jour ciblée
             supabase.table("clients").update(donnees).eq("nom", nom).execute()
         else:
-            # 3. Si non, on fait une insertion propre
+            # 3. Si non, on fait une insertion propre du nouveau client
             supabase.table("clients").insert(donnees).execute()
+            
+            # --- DÉBUT DE LA DUPLICATION DES TARIFS INVELAC ---
+            try:
+                # On va chercher tous les tarifs configurés pour le client 'Invelac'
+                tarifs_invelac = supabase.table("tarifs_clients").select("*").eq("nom_client", "Invelac").execute()
+                
+                if tarifs_invelac.data:
+                    nouvelles_lignes_tarifs = []
+                    for t in tarifs_invelac.data:
+                        # On prépare la copie en remplaçant 'Invelac' par le nom du nouveau client
+                        # On retire la clé 'id' si elle existe pour laisser Supabase générer un nouvel ID auto-incrémenté
+                        nouvel_item = t.copy()
+                        if "id" in nouvel_item:
+                            del nouvel_item["id"]
+                        nouvel_item["nom_client"] = nom
+                        nouvelles_lignes_tarifs.append(nouvel_item)
+                    
+                    # On insère d'un coup toute la nouvelle grille tarifaire
+                    supabase.table("tarifs_clients").insert(nouvelles_lignes_tarifs).execute()
+            except Exception as e_tarifs:
+                st.warning(f"Le client a été créé, mais la copie des tarifs par défaut (Invelac) a échoué : {e_tarifs}")
+            # --- FIN DE LA DUPLICATION ---
             
     except Exception as e:
         # En cas de pépin, on affiche l'erreur technique exacte directement à l'écran

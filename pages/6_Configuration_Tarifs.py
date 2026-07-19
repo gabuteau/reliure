@@ -44,8 +44,8 @@ if tarifs_bruts:
     champ_libelle = next((c for c in ["libelle", "designation", "nom", "prestation"] if c in colonnes_disponibles), None)
     champ_client = next((c for c in ["nom_client", "client"] if c in colonnes_disponibles), None)
     
-    # --- CORRECTION ICI : Ajout explicite de 'format_livre' ---
-    champ_format = next((c for c in ["format_livre", "format", "taille", "dimensions"] if c in colonnes_disponibles), None)
+    # --- TOUT EST ICI : Ajout de 'format_nom' visible sur la capture d'écran ---
+    champ_format = next((c for c in ["format_nom", "format_livre", "format", "taille"] if c in colonnes_disponibles), None)
     
     if not champ_prix:
         st.error(f"Impossible de trouver la colonne du prix parmi : {colonnes_disponibles}")
@@ -125,7 +125,6 @@ if tarifs_bruts:
         elif col == champ_client:
             configuration_colonnes[col] = st.column_config.TextColumn("Client", disabled=True)
         elif col == champ_format:
-            # On nomme proprement la colonne à l'affichage
             configuration_colonnes[col] = st.column_config.TextColumn("Format", disabled=True)
         elif col != "id":
             configuration_colonnes[col] = st.column_config.TextColumn(col, disabled=True)
@@ -136,7 +135,7 @@ if tarifs_bruts:
         column_config=configuration_colonnes,
         use_container_width=True,
         hide_index=True,
-        key="editeur_tarifs_trois_filtres_corrige"
+        key="editeur_tarifs_trois_filtres_final"
     )
     
     if st.button("💾 Enregistrer la nouvelle grille de tarifs", type="primary", use_container_width=True):

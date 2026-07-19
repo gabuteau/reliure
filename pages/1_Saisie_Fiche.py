@@ -50,7 +50,6 @@ def generer_automatiquement_numero_train(client):
 
 def determiner_prochain_numero_livre(client, train):
     supabase = obtenir_client_supabase()
-    # Nettoyage des chaînes pour éviter les décalages de filtres
     reponse = supabase.table("fiches_livres").select("numero_livre").eq("nom_client", client.strip()).eq("numero_train", train.strip()).execute()
     if not reponse.data:
         return 1
@@ -85,10 +84,23 @@ def recuperer_livres_du_train(client, train):
         ])
     return donnees_formatees
 
+def recuperer_tarifs_supplements_client(client):
+    """Va chercher les montants des prestations pour le client sélectionné depuis Supabase"""
+    supabase = obtenir_client_supabase()
+    try:
+        reponse = supabase.table("tarifs_clients").select("designation, montant").eq("nom_client", client.strip()).execute()
+        if reponse.data:
+            df_temp = pd.DataFrame(reponse.data)
+            return df_temp.groupby("designation")["montant"].max().to_dict()
+    except Exception:
+        pass
+    return {}
+
 def enregistrer_ou_mettre_a_jour_livre(donnees):
     supabase = obtenir_client_supabase()
     supabase.table("fiches_livres").upsert(donnees).execute()
 
+# Configuration Streamlit
 st.set_page_config(page_title="Saisie & Suivi des Livres", layout="wide")
 st.title("📚 Saisie de Fiche — Devis + Traitements")
 
@@ -105,7 +117,7 @@ OPTIONS_SUPPLEMENTS = [
     "Couture manuelle sur rubans"
 ]
 
-PRIX_SUPPLEMENTS = {
+VALEURS_USINE_SUPPLEMENTS = {
     "Plats conservés": 15.00, "Onglets": 8.50, "Doublage japon": 22.00, "Charnières toile": 14.00,
     "Conservation de gardes": 12.00, "Couture sur nerfs": 35.00, "Couvrure sur nerf": 40.00,
     "Filets fleurons": 25.00, "Plaçure": 18.00, "Sup ouvrage déjà relié": 30.00,
@@ -130,6 +142,10 @@ else:
             st.info("💡 Sélectionnez un client pour afficher ou créer un train de livres.")
             train_charge_valide = False
         else:
+            # Récupération et fusion des tarifs cloud pour la session active
+            tarifs_cloud = recuperer_tarifs_supplements_client(nom_client_valide)
+            PRIX_ACTUELS = {**VALEURS_USINE_SUPPLEMENTS, **tarifs_cloud}
+            
             liste_trains_existants = lister_les_trains_du_client(nom_client_valide)
             options_train = ["-- Choisir un train --", "[+] Créer un nouveau train automatiquement"] + liste_trains_existants
             
@@ -242,8 +258,8 @@ else:
 
             def afficher_prix_indicatif(nom_supplement):
                 if nom_supplement and nom_supplement != "-- Aucun --":
-                    prix = PRIX_SUPPLEMENTS.get(nom_supplement, 0.00)
-                    st.caption(f"💰 *Prix indicatif : {prix:.2f} €*")
+                    prix = PRIX_ACTUELS.get(nom_supplement, 0.00)
+                    st.caption(f"💰 *Prix synchronisé : {prix:.2f} €*")
                 else:
                     st.caption(" ")
 
@@ -265,7 +281,7 @@ else:
                 supplement_4 = st.selectbox("Supplément 4", options=liste_choix_sups, index=liste_choix_sups.index(sup4_def))
                 afficher_prix_indicatif(supplement_4)
 
-            total_sups = sum([PRIX_SUPPLEMENTS.get(s, 0.0) for s in [supplement_1, supplement_2, supplement_3, supplement_4]])
+            total_sups = sum([PRIX_ACTUELS.get(s, 0.0) for s in [supplement_1, supplement_2, supplement_3, supplement_4]])
             if total_sups > 0:
                 st.info(f"📊 **Sous-total suppléments pour ce livre :** {total_sups:.2f} €")
 

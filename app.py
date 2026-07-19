@@ -9,7 +9,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Masquage de app.py dans la navigation et suppression des marges du bouton logo personnalisé
+# Masquage de app.py dans la navigation et gestion du style du logo
 st.html(
     """
     <style>
@@ -18,7 +18,7 @@ st.html(
         }
         .logo-link {
             display: block;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             cursor: pointer;
             transition: opacity 0.2s;
         }
@@ -31,33 +31,31 @@ st.html(
 
 # --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
-    # Encodage de l'image en Base64 pour l'intégrer proprement dans le lien HTML
+    # 1. Le logo est chargé en PREMIER pour apparaître tout en haut
     chemin_logo = "logo_reliure.jpg"
     if os.path.exists(chemin_logo):
         with open(chemin_logo, "rb") as f:
             data_logo = base64.b64encode(f.read()).decode()
-        
-        # Le logo est encapsulé dans un lien pointant vers l'URL de l'application (ce qui recharge app.py)
         st.html(f'<a href="/" target="_self" class="logo-link"><img src="data:image/jpeg;base64,{data_logo}" style="width: 100%;"></a>')
     else:
-        # Solution de secours si l'image est manquante
         if st.button("📚 Accueil Atelier", key="nav_home_fallback", use_container_width=True):
             st.switch_page("app.py")
             
+    # 2. Le menu de navigation natif de Streamlit vient s'insérer automatiquement ici
     st.write("---")
     st.caption("Système de Gestion d'Atelier — 2026")
+
 
 # --- CORPS PRINCIPAL ---
 st.title("📚 Système de Gestion de l'Atelier de Reliure")
 st.markdown("### Outil centralisé de suivi de production et d'administration")
 st.write("---")
 
-# Zone de notifications rapides / Astuces
 st.info("💡 **Rappel d'impression** : Pour imprimer une fiche de garde ou une fiche technique d'atelier, utilisez le raccourci clavier natif de votre navigateur : **Ctrl + P** (ou **Cmd + P** sur Mac).")
 
 st.write("---")
 
-# Répartition des modules en 3 colonnes thématiques
+# Répartition des modules en 3 colonnes thématiques[span_0](start_span)[span_0](end_span)
 col_prod, col_tarifs, col_admin = st.columns(3)
 
 with col_prod:

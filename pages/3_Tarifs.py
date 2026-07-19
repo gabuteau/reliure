@@ -45,13 +45,13 @@ else:
     dupliquer_grille_standard_pour_client(client_tarif_sel)
     
     supabase = obtenir_client_supabase()
-    # Correction : On récupère l'id pour permettre des updates ciblés sans doublons
-    reponse_tarifs = supabase.table("tarifs_clients").select("id, designation, format_nom, montant").eq("nom_client", client_tarif_sel).execute()
+    # CORRECTION : Retrait du champ "id" qui provoquait l'APIError
+    reponse_tarifs = supabase.table("tarifs_clients").select("designation, format_nom, montant").eq("nom_client", client_tarif_sel).execute()
     
     if reponse_tarifs.data:
         df_tarifs = pd.DataFrame(reponse_tarifs.data)
         
-        # On construit le tableau visuel pour l'utilisateur
+        # Reconstruction de la matrice visuelle
         df_pivot = df_tarifs.pivot(index="designation", columns="format_nom", values="montant")
         df_pivot = df_pivot.reindex(columns=FORMATS_COLONNES)
         
@@ -60,13 +60,13 @@ else:
         
         if st.button("💾 Enregistrer la nouvelle grille"):
             changements = 0
-            # On compare cellule par cellule pour n'envoyer que les modifications réelles via requêtes ciblées
+            # Comparaison et mise à jour ciblée par triplet unique
             for designation, row in df_edite.iterrows():
                 for format_nom, nouveau_montant in row.items():
                     valeur_origine = df_pivot.loc[designation, format_nom]
                     
                     if float(nouveau_montant) != float(valeur_origine):
-                        # Sécurisation : On applique un update précis sur le trio unique
+                        # Envoi de la mise à jour basée sur les trois critères textuels
                         supabase.table("tarifs_clients")\
                             .update({"montant": float(nouveau_montant)})\
                             .eq("nom_client", client_tarif_sel)\

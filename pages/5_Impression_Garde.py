@@ -59,15 +59,6 @@ def generer_pdf_fiches(liste_fiches, date_str):
     
     styles = getSampleStyleSheet()
     
-    style_titre = ParagraphStyle(
-        'TitreFiche',
-        parent=styles['Heading1'],
-        fontSize=18,
-        leading=22,
-        alignment=1, 
-        spaceAfter=20,
-        underline=True
-    )
     style_section = ParagraphStyle(
         'SectionFiche',
         parent=styles['Heading2'],
@@ -93,7 +84,7 @@ def generer_pdf_fiches(liste_fiches, date_str):
         report_str = "OUI" if data.get('repro_report') else "NON"
         titrage_toile_str = "SANS TITRAGE" if data.get('sans_titrage') else f"{data.get('titrage_couleur')} ({data.get('titrage_sens')})"
         
-        # Structure En-tête (Logo à gauche, Date à droite)[span_1](start_span)[span_1](end_span)
+        # Structure En-tête (Logo à gauche, Date à droite)[span_0](start_span)[span_0](end_span)
         elements_entete_gauche = []
         if os.path.exists(chemin_logo):
             img_logo = Image(chemin_logo, width=95, height=45)
@@ -115,8 +106,6 @@ def generer_pdf_fiches(liste_fiches, date_str):
             ('ALIGN', (1, 0), (1, 0), 'RIGHT')
         ]))
         
-        elements.append(Paragraph("<b>- Informations sur la page de garde -</b>", style_titre))
-        elements.append(Spacer(1, 15))
         elements.append(t_entete)
         elements.append(Spacer(1, 15))
         
@@ -301,8 +290,7 @@ def generer_bloc_html_fiche(data, date_str, logo_html):
     return f"""
     <div class="print-container">
         {logo_html}
-        <h2 style="text-align: center; text-decoration: underline; margin-top: 50px; margin-bottom: 30px;">- Informations sur la page de garde -</h2>
-        <div class="print-row">
+        <div class="print-row" style="margin-top: 60px;">
             <div class="print-col" style="margin-left: 10px;">
                 <span class="field-label">Client :</span> <span class="field-value">{data.get('nom_client')}</span><br>
                 <span class="field-label">N° du Train :</span> <span class="field-value">{data.get('numero_train')}</span><br>

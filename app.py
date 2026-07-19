@@ -7,16 +7,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Masquage du fichier app.py dans la liste de navigation native de la barre latérale
-st.markdown(
+# Injection propre du CSS pour masquer le premier élément de navigation (app.py)
+st.html(
     """
     <style>
         [data-testid="stSidebarNavItems"] li:first-child {
             display: none;
         }
     </style>
-    """,
-    allow_unsafe_html=True
+    """
 )
 
 # --- BARRE LATÉRALE (SIDEBAR) ---
@@ -25,12 +24,13 @@ with st.sidebar:
     if st.button("🖼️", key="logo_home", help="Retour à l'accueil", use_container_width=False):
         st.switch_page("app.py")
     
-    # Remplacement du bouton texte par l'image si elle est présente, positionnée juste sous le bouton cliquable
+    # Remplacement du bouton texte par l'image si elle est présente
     if "logo_reliure.jpg":
         st.image("logo_reliure.jpg", use_container_width=True)
     
     st.write("---")
     st.caption("Système de Gestion d'Atelier — 2026")
+
 
 # --- CORPS PRINCIPAL ---
 st.title("📚 Système de Gestion de l'Atelier de Reliure")

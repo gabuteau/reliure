@@ -4,7 +4,7 @@ import os
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
-    page_title="Gestion Reliure & Atelier",
+    page_title="Accueil",
     page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -63,7 +63,7 @@ with st.sidebar:
             st.switch_page("app.py")
     st.html('</div>')
             
-    # 2. Le menu de navigation natif (Saisie Fiche, Clients, Tarifs...) s'intercale ici (Ordre 2)
+    # 2. Le menu de navigation natif s'intercale ici (Ordre 2)
             
     # 3. Zone Pied de page (Ordre 3)
     st.html('<div class="sidebar-footer">')

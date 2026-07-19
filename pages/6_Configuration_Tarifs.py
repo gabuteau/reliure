@@ -35,16 +35,20 @@ st.write("Modifiez les prix appliqués aux clients pour les fiches de livres.")
 tarifs_bruts = charger_grille_tarifs()
 
 if tarifs_bruts:
-    # Conversion en DataFrame pour faciliter le filtrage
+    # Conversion en DataFrame et indexation immédiate sur l'id
     df_tarifs = pd.DataFrame(tarifs_bruts)
+    
+    if "id" in df_tarifs.columns:
+        df_tarifs = df_tarifs.set_index("id")
+    else:
+        st.error("La colonne 'id' est introuvable dans la table.")
+        st.stop()
     
     # Détection dynamique des colonnes
     colonnes_disponibles = df_tarifs.columns.tolist()
     champ_prix = next((c for c in ["prix_unitaire", "prix", "montant", "valeur"] if c in colonnes_disponibles), None)
     champ_libelle = next((c for c in ["libelle", "designation", "nom", "prestation"] if c in colonnes_disponibles), None)
     champ_client = next((c for c in ["nom_client", "client"] if c in colonnes_disponibles), None)
-    
-    # --- TOUT EST ICI : Ajout de 'format_nom' visible sur la capture d'écran ---
     champ_format = next((c for c in ["format_nom", "format_livre", "format", "taille"] if c in colonnes_disponibles), None)
     
     if not champ_prix:
@@ -112,10 +116,8 @@ if tarifs_bruts:
     st.write("---")
     st.subheader(f"📈 Grille affichée : {df_filtré.shape[0]} ligne(s) trouvée(s)")
 
-    # Configuration dynamique des colonnes pour l'éditeur
-    configuration_colonnes = {
-        "id": None,  # Masque l'identifiant technique
-    }
+    # Configuration dynamique des colonnes pour l'éditeur (l'id étant l'index, il est masqué par hide_index=True)
+    configuration_colonnes = {}
     
     for col in colonnes_disponibles:
         if col == champ_prix:
@@ -126,7 +128,7 @@ if tarifs_bruts:
             configuration_colonnes[col] = st.column_config.TextColumn("Client", disabled=True)
         elif col == champ_format:
             configuration_colonnes[col] = st.column_config.TextColumn("Format", disabled=True)
-        elif col != "id":
+        else:
             configuration_colonnes[col] = st.column_config.TextColumn(col, disabled=True)
             
     # Affichage du tableau triplement filtré
@@ -134,19 +136,20 @@ if tarifs_bruts:
         df_filtré,
         column_config=configuration_colonnes,
         use_container_width=True,
-        hide_index=True,
+        hide_index=True,  # Masque l'index (l'id) visuellement
         key="editeur_tarifs_trois_filtres_final"
     )
     
     if st.button("💾 Enregistrer la nouvelle grille de tarifs", type="primary", use_container_width=True):
         changements_effectues = 0
         
-        for (_, ligne_originale), (_, ligne_modifiee) in zip(df_filtré.iterrows(), df_edite.iterrows()):
+        # L'index contenant les IDs reste inchangé et aligné entre les deux DataFrames
+        for (id_tarif, ligne_originale), (_, ligne_modifiee) in zip(df_filtré.iterrows(), df_edite.iterrows()):
             prix_orig = float(ligne_originale[champ_prix]) if ligne_originale[champ_prix] is not None else 0.0
             prix_mod = float(ligne_modifiee[champ_prix]) if ligne_modifiee[champ_prix] is not None else 0.0
             
             if prix_orig != prix_mod:
-                succes = mettre_a_jour_tarif(ligne_modifiee["id"], champ_prix, prix_mod)
+                succes = mettre_a_jour_tarif(id_tarif, champ_prix, prix_mod)
                 if succes:
                     changements_effectues += 1
         

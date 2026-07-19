@@ -44,13 +44,13 @@ def recuperer_tous_les_livres_du_train(client, train):
 def generer_pdf_fiches(liste_fiches, date_str):
     """Génère un fichier PDF A4 en mémoire avec sauts de page"""
     tampon = io.BytesIO()
-    # Marges de 1,5 cm adaptées au format A4
+    # Utilisation de A4 (majuscules) ici
     doc = SimpleDocTemplate(
         tampon, 
-        pagesize=a4,
+        pagesize=A4,
         rightMargin=42, leftMargin=42, topMargin=42, bottomMargin=42
     )
-    
+
     styles = getSampleStyleSheet()
     
     # Définition des styles personnalisés

@@ -20,7 +20,9 @@ def mettre_a_jour_tarif(id_tarif, champ_prix, nouveau_prix):
     donnees_maj = {champ_prix: nouveau_prix}
     
     try:
-        supabase.table("tarifs_clients").update(donnees_maj).eq("id", id_tarif).execute()
+        # On essaie d'utiliser le nom détecté pour l'ID, sinon 'id' par défaut
+        id_colonne = champ_id if 'champ_id' in globals() else "id"
+        supabase.table("tarifs_clients").update(donnees_maj).eq(id_colonne, id_tarif).execute()
         return True
     except Exception as e:
         st.error(f"Erreur lors de la mise à jour : {e}")
@@ -35,14 +37,8 @@ st.write("Modifiez les prix appliqués aux clients pour les fiches de livres.")
 tarifs_bruts = charger_grille_tarifs()
 
 if tarifs_bruts:
-    # Conversion en DataFrame et indexation immédiate sur l'id
+    # Conversion en DataFrame standard
     df_tarifs = pd.DataFrame(tarifs_bruts)
-    
-    if "id" in df_tarifs.columns:
-        df_tarifs = df_tarifs.set_index("id")
-    else:
-        st.error("La colonne 'id' est introuvable dans la table.")
-        st.stop()
     
     # Détection dynamique des colonnes
     colonnes_disponibles = df_tarifs.columns.tolist()
@@ -50,9 +46,14 @@ if tarifs_bruts:
     champ_libelle = next((c for c in ["libelle", "designation", "nom", "prestation"] if c in colonnes_disponibles), None)
     champ_client = next((c for c in ["nom_client", "client"] if c in colonnes_disponibles), None)
     champ_format = next((c for c in ["format_nom", "format_livre", "format", "taille"] if c in colonnes_disponibles), None)
+    champ_id = next((c for c in ["id", "ID", "id_tarif", "id_prix"] if c in colonnes_disponibles), None)
     
     if not champ_prix:
         st.error(f"Impossible de trouver la colonne du prix parmi : {colonnes_disponibles}")
+        st.stop()
+        
+    if not champ_id:
+        st.error(f"Impossible d'identifier la colonne clé primaire (ID) parmi : {colonnes_disponibles}")
         st.stop()
 
     # --- SECTION DES FILTRES (3 COLONNES) ---
@@ -116,8 +117,10 @@ if tarifs_bruts:
     st.write("---")
     st.subheader(f"📈 Grille affichée : {df_filtré.shape[0]} ligne(s) trouvée(s)")
 
-    # Configuration dynamique des colonnes pour l'éditeur (l'id étant l'index, il est masqué par hide_index=True)
-    configuration_colonnes = {}
+    # Configuration dynamique des colonnes pour l'éditeur
+    configuration_colonnes = {
+        champ_id: None  # Masque dynamiquement la colonne identifiant peu importe son nom exact
+    }
     
     for col in colonnes_disponibles:
         if col == champ_prix:
@@ -128,34 +131,44 @@ if tarifs_bruts:
             configuration_colonnes[col] = st.column_config.TextColumn("Client", disabled=True)
         elif col == champ_format:
             configuration_colonnes[col] = st.column_config.TextColumn("Format", disabled=True)
-        else:
+        elif col != champ_id:
             configuration_colonnes[col] = st.column_config.TextColumn(col, disabled=True)
             
-    # Affichage du tableau triplement filtré
-    df_edite = st.data_editor(
+    # Affichage de l'éditeur. On récupère directement l'état des modifications via st.session_state
+    st.data_editor(
         df_filtré,
         column_config=configuration_colonnes,
         use_container_width=True,
-        hide_index=True,  # Masque l'index (l'id) visuellement
-        key="editeur_tarifs_trois_filtres_final"
+        hide_index=True,
+        key="editeur_tarifs_trois_filtres_robuste"
     )
     
     if st.button("💾 Enregistrer la nouvelle grille de tarifs", type="primary", use_container_width=True):
-        changements_effectues = 0
+        # Récupération des lignes éditées depuis le state de Streamlit
+        donnees_state = st.session_state["editeur_tarifs_trois_filtres_robuste"]
+        lignes_modifiees = donnees_state.get("edited_rows", {})
         
-        # L'index contenant les IDs reste inchangé et aligné entre les deux DataFrames
-        for (id_tarif, ligne_originale), (_, ligne_modifiee) in zip(df_filtré.iterrows(), df_edite.iterrows()):
-            prix_orig = float(ligne_originale[champ_prix]) if ligne_originale[champ_prix] is not None else 0.0
-            prix_mod = float(ligne_modifiee[champ_prix]) if ligne_modifiee[champ_prix] is not None else 0.0
+        if lignes_modifiees:
+            changements_effectues = 0
             
-            if prix_orig != prix_mod:
-                succes = mettre_a_jour_tarif(id_tarif, champ_prix, prix_mod)
-                if succes:
-                    changements_effectues += 1
-        
-        if changements_effectues > 0:
-            st.success(f"🎉 Grille mise à jour ! {changements_effectues} tarif(s) modifié(s).")
-            st.rerun()
+            # lignes_modifiees contient des dictionnaires du type : { index_visuel: { champ_prix: nouveau_prix } }
+            for index_visuel, changements in lignes_modifiees.items():
+                if champ_prix in changements:
+                    nouveau_prix = changements[champ_prix]
+                    
+                    # On retrouve la ligne d'origine grâce à son index de position dans le tableau filtré
+                    ligne_originale = df_filtré.iloc[index_visuel]
+                    id_base_de_donnees = ligne_originale[champ_id]
+                    
+                    succes = mettre_a_jour_tarif(id_base_de_donnees, champ_prix, nouveau_prix)
+                    if succes:
+                        changements_effectues += 1
+            
+            if changements_effectues > 0:
+                st.success(f"🎉 Grille mise à jour ! {changements_effectues} tarif(s) modifié(s).")
+                st.rerun()
+            else:
+                st.info("Les modifications n'ont pas pu être enregistrées.")
         else:
             st.info("Aucun changement de tarif n'a été détecté.")
 else:

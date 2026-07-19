@@ -2,6 +2,7 @@ import streamlit as st
 import base64
 import os
 
+# --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="Gestion Reliure & Atelier",
     page_icon="📚",
@@ -9,37 +10,33 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Masquage de app.py et réorganisation forcée de la barre latérale (Flexbox)
+# --- INJECTION CSS (STRUCTURE SIDEBAR & LOGO) ---
 st.html(
     """
     <style>
-        /* Cache le premier lien du menu (app.py) */
-        [data-testid="stSidebarNavItems"] li:first-child {
-            display: none;
-        }
-        
-        /* Force le conteneur de la barre latérale à utiliser Flexbox en colonne */
+        /* Réorganisation de la barre latérale en Flexbox */
         [data-testid="stSidebarUserContent"] {
             display: flex;
             flex-direction: column;
         }
         
-        /* Attribue l'ordre 1 au logo pour qu'il grimpe tout en haut */
+        /* Positionne le logo tout en haut */
         .logo-container {
             order: 1;
             margin-bottom: 20px;
         }
         
-        /* Attribue l'ordre 2 au menu natif pour qu'il se place sous le logo */
+        /* Positionne le menu de navigation natif sous le logo */
         [data-testid="stSidebarNav"] {
             order: 2;
         }
         
-        /* Attribue l'ordre 3 aux éléments du bas (séparateur, version) */
+        /* Positionne le pied de page tout en bas */
         .sidebar-footer {
             order: 3;
         }
 
+        /* Style du lien image */
         .logo-link {
             display: block;
             cursor: pointer;
@@ -54,9 +51,8 @@ st.html(
 
 # --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
-    # Début du conteneur du logo (forcé tout en haut via le CSS order: 1)
+    # 1. Zone du Logo (Ordre 1)
     st.html('<div class="logo-container">')
-    
     chemin_logo = "logo_reliure.jpg"
     if os.path.exists(chemin_logo):
         with open(chemin_logo, "rb") as f:
@@ -65,10 +61,11 @@ with st.sidebar:
     else:
         if st.button("📚 Accueil Atelier", key="nav_home_fallback", use_container_width=True):
             st.switch_page("app.py")
+    st.html('</div>')
             
-    st.html('</div>') # Fin du conteneur logo
+    # 2. Le menu de navigation natif (Saisie Fiche, Clients, Tarifs...) s'intercale ici (Ordre 2)
             
-    # Conteneur pour les éléments du bas (forcé en position 3)
+    # 3. Zone Pied de page (Ordre 3)
     st.html('<div class="sidebar-footer">')
     st.write("---")
     st.caption("Système de Gestion d'Atelier — 2026")
@@ -80,11 +77,12 @@ st.title("📚 Système de Gestion de l'Atelier de Reliure")
 st.markdown("### Outil centralisé de suivi de production et d'administration")
 st.write("---")
 
+# Zone d'information / Rappels pratiques
 st.info("💡 **Rappel d'impression** : Pour imprimer une fiche de garde ou une fiche technique d'atelier, utilisez le raccourci clavier natif de votre navigateur : **Ctrl + P** (ou **Cmd + P** sur Mac).")
 
 st.write("---")
 
-# Répartition des modules en 3 colonnes thématiques
+# Découpage fonctionnel de l'accueil en 3 colonnes
 col_prod, col_tarifs, col_admin = st.columns(3)
 
 with col_prod:

@@ -1,6 +1,5 @@
 import streamlit as st
 from supabase import create_client
-from datetime import datetime
 import pandas as pd
 
 def obtenir_client_supabase():
@@ -15,11 +14,9 @@ def charger_grille_tarifs():
         st.error(f"Erreur lors du chargement des tarifs : {e}")
         return []
 
-# Modification de la fonction pour cibler par le trio unique au lieu d'un ID unique
 def mettre_a_jour_tarif(nom_client, designation, format_nom, champ_prix, nouveau_prix):
     supabase = obtenir_client_supabase()
     donnees_maj = {champ_prix: nouveau_prix}
-    
     try:
         supabase.table("tarifs_clients")\
             .update(donnees_maj)\
@@ -41,21 +38,16 @@ st.write("Modifiez les prix appliqués aux clients pour les fiches de livres.")
 tarifs_bruts = charger_grille_tarifs()
 
 if tarifs_bruts:
-    # Conversion en DataFrame standard
     df_tarifs = pd.DataFrame(tarifs_bruts)
     
-    # Assignation fixe basée sur tes colonnes réelles
     champ_client = "nom_client"
     champ_libelle = "designation"
     champ_format = "format_nom"
     champ_prix = "montant"
 
-    # --- SECTION DES FILTRES (3 COLONNES) ---
     st.write("### 🔍 Filtrer la grille tarifaire")
-    
     col_filtre1, col_filtre2, col_filtre3 = st.columns(3)
     
-    # 1. Filtre par Client
     client_selectionne = "Tous les clients"
     if champ_client in df_tarifs.columns:
         liste_clients = sorted(df_tarifs[champ_client].dropna().unique().tolist())
@@ -68,13 +60,11 @@ if tarifs_bruts:
                 index=index_defaut + 1 if "Invelac" in liste_clients else 0
             )
             
-    # Application du filtre Client
     if client_selectionne != "Tous les clients":
         df_etape1 = df_tarifs[df_tarifs[champ_client] == client_selectionne]
     else:
         df_etape1 = df_tarifs
 
-    # 2. Filtre par Prestation
     prestation_selectionnee = "Toutes les prestations"
     if champ_libelle in df_tarifs.columns:
         liste_prestations = sorted(df_etape1[champ_libelle].dropna().unique().tolist())
@@ -85,13 +75,11 @@ if tarifs_bruts:
                 options=["Toutes les prestations"] + liste_prestations
             )
 
-    # Application du filtre Prestation
     if prestation_selectionnee != "Toutes les prestations":
         df_etape2 = df_etape1[df_etape1[champ_libelle] == prestation_selectionnee]
     else:
         df_etape2 = df_etape1
 
-    # 3. Filtre par Format
     format_selectionne = "Tous les formats"
     if champ_format in df_tarifs.columns:
         liste_formats = sorted(df_etape2[champ_format].dropna().unique().tolist())
@@ -102,7 +90,6 @@ if tarifs_bruts:
                 options=["Tous les formats"] + [str(f) for f in liste_formats]
             )
 
-    # Application du filtre Format final
     if format_selectionne != "Tous les formats":
         df_filtré = df_etape2[df_etape2[champ_format].astype(str) == format_selectionne].copy()
     else:
@@ -111,7 +98,6 @@ if tarifs_bruts:
     st.write("---")
     st.subheader(f"📈 Grille affichée : {df_filtré.shape[0]} ligne(s) trouvée(s)")
 
-    # Configuration des colonnes pour l'éditeur
     configuration_colonnes = {
         champ_prix: st.column_config.NumberColumn("Prix (€)", min_value=0.0, format="%.2f €", required=True),
         champ_libelle: st.column_config.TextColumn("Prestation", disabled=True),
@@ -119,7 +105,6 @@ if tarifs_bruts:
         champ_format: st.column_config.TextColumn("Format", disabled=True)
     }
             
-    # Affichage de l'éditeur
     st.data_editor(
         df_filtré,
         column_config=configuration_colonnes,
@@ -138,15 +123,12 @@ if tarifs_bruts:
             for index_visuel, changements in lignes_modifiees.items():
                 if champ_prix in changements:
                     nouveau_prix = changements[champ_prix]
-                    
-                    # On extrait la ligne d'origine pour obtenir le trio d'identification
                     ligne_originale = df_filtré.iloc[index_visuel]
                     
                     val_client = ligne_originale[champ_client]
                     val_prestation = ligne_originale[champ_libelle]
                     val_format = ligne_originale[champ_format]
                     
-                    # Envoi des 3 filtres pour la mise à jour ciblée
                     succes = mettre_a_jour_tarif(val_client, val_prestation, val_format, champ_prix, nouveau_prix)
                     if succes:
                         changements_effectues += 1

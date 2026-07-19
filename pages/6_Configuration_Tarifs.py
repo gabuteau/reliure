@@ -43,7 +43,9 @@ if tarifs_bruts:
     champ_prix = next((c for c in ["prix_unitaire", "prix", "montant", "valeur"] if c in colonnes_disponibles), None)
     champ_libelle = next((c for c in ["libelle", "designation", "nom", "prestation"] if c in colonnes_disponibles), None)
     champ_client = next((c for c in ["nom_client", "client"] if c in colonnes_disponibles), None)
-    champ_format = next((c for c in ["format", "taille", "dimensions"] if c in colonnes_disponibles), None)
+    
+    # --- CORRECTION ICI : Ajout explicite de 'format_livre' ---
+    champ_format = next((c for c in ["format_livre", "format", "taille", "dimensions"] if c in colonnes_disponibles), None)
     
     if not champ_prix:
         st.error(f"Impossible de trouver la colonne du prix parmi : {colonnes_disponibles}")
@@ -93,7 +95,6 @@ if tarifs_bruts:
     # 3. Filtre par Format
     format_selectionne = "Tous les formats"
     if champ_format and champ_format in df_tarifs.columns:
-        # On propose uniquement les formats disponibles après les deux premiers filtres
         liste_formats = sorted(df_etape2[champ_format].dropna().unique().tolist())
         
         with col_filtre3:
@@ -104,7 +105,6 @@ if tarifs_bruts:
 
     # Application du filtre Format final
     if format_selectionne != "Tous les formats":
-        # Gestion du type (chaîne ou numérique) pour éviter les sauts de filtres
         df_filtré = df_etape2[df_etape2[champ_format].astype(str) == format_selectionne].copy()
     else:
         df_filtré = df_etape2.copy()
@@ -125,6 +125,7 @@ if tarifs_bruts:
         elif col == champ_client:
             configuration_colonnes[col] = st.column_config.TextColumn("Client", disabled=True)
         elif col == champ_format:
+            # On nomme proprement la colonne à l'affichage
             configuration_colonnes[col] = st.column_config.TextColumn("Format", disabled=True)
         elif col != "id":
             configuration_colonnes[col] = st.column_config.TextColumn(col, disabled=True)
@@ -135,13 +136,12 @@ if tarifs_bruts:
         column_config=configuration_colonnes,
         use_container_width=True,
         hide_index=True,
-        key="editeur_tarifs_trois_filtres"
+        key="editeur_tarifs_trois_filtres_corrige"
     )
     
     if st.button("💾 Enregistrer la nouvelle grille de tarifs", type="primary", use_container_width=True):
         changements_effectues = 0
         
-        # Comparaison et sauvegarde
         for (_, ligne_originale), (_, ligne_modifiee) in zip(df_filtré.iterrows(), df_edite.iterrows()):
             prix_orig = float(ligne_originale[champ_prix]) if ligne_originale[champ_prix] is not None else 0.0
             prix_mod = float(ligne_modifiee[champ_prix]) if ligne_modifiee[champ_prix] is not None else 0.0

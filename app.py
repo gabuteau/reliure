@@ -16,7 +16,7 @@ st.markdown(
         }
     </style>
     """,
-    unsafe_html=True
+    allow_unsafe_html=True
 )
 
 # --- BARRE LATÉRALE (SIDEBAR) ---

@@ -54,8 +54,9 @@ st.html(
 
 # --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
-    # Conteneur du logo (forcé tout en haut via le CSS order: 1)
-    st.markdown('<div class="logo-container">', unsafe_html=True)
+    # Début du conteneur du logo (forcé tout en haut via le CSS order: 1)
+    st.html('<div class="logo-container">')
+    
     chemin_logo = "logo_reliure.jpg"
     if os.path.exists(chemin_logo):
         with open(chemin_logo, "rb") as f:
@@ -64,13 +65,14 @@ with st.sidebar:
     else:
         if st.button("📚 Accueil Atelier", key="nav_home_fallback", use_container_width=True):
             st.switch_page("app.py")
-    st.markdown('</div>', unsafe_html=True)
+            
+    st.html('</div>') # Fin du conteneur logo
             
     # Conteneur pour les éléments du bas (forcé en position 3)
-    st.markdown('<div class="sidebar-footer">', unsafe_html=True)
+    st.html('<div class="sidebar-footer">')
     st.write("---")
     st.caption("Système de Gestion d'Atelier — 2026")
-    st.markdown('</div>', unsafe_html=True)
+    st.html('</div>')
 
 
 # --- CORPS PRINCIPAL ---

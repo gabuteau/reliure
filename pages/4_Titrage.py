@@ -256,7 +256,6 @@ else:
                 t3_haut_titre = st.number_input("Hauteur du titre (mm)", min_value=10, max_value=1000, value=int(init_haut), step=1)
             
             with c_dim2:
-                # Hauteur maquette modifiable (par défaut : Hauteur titre + 5 mm)
                 t3_haut_maquette = st.number_input("Hauteur maquette (mm)", min_value=10, max_value=1000, value=int(init_haut + 5), step=1)
                 
             with c_dim3:
@@ -397,93 +396,92 @@ else:
                 ):
                     st.success(f"✅ Fiche & Composition enregistrées (Livre N°{t3_livre_num} — Train {t3_train_sel})")
 
-    # --- RENDU VISUEL DYNAMIQUE ---
-    with col_gabarit_visualisation:
-        st.subheader("📐 Gabarit dynamique du dos à dorer")
+        # --- RENDU VISUEL DYNAMIQUE ---
+        with col_gabarit_visualisation:
+            st.subheader("📐 Gabarit dynamique du dos à dorer")
 
-        couleur_fond_html = HEX_COULEURS_TOILE.get(t3_couleur_nom, "#1a1a1a")
-        couleur_texte_html = HEX_COULEURS_MARQUAGE.get(t3_marquage_nom, "#ffd700")
+            couleur_fond_html = HEX_COULEURS_TOILE.get(t3_couleur_nom, "#1a1a1a")
+            couleur_texte_html = HEX_COULEURS_MARQUAGE.get(t3_marquage_nom, "#ffd700")
 
-        facteur_px = 2.5
-        hauteur_visuelle_px = max(min(int(t3_haut_maquette * facteur_px), 600), 350)
-        largeur_visuelle_px = max(min(int(t3_larg_dos_utile * facteur_px), 250), 60)
-        
-        # Règle basée sur la hauteur maquette
-        px_par_mm = hauteur_visuelle_px / t3_haut_maquette
+            facteur_px = 2.5
+            hauteur_visuelle_px = max(min(int(t3_haut_maquette * facteur_px), 600), 350)
+            largeur_visuelle_px = max(min(int(t3_larg_dos_utile * facteur_px), 250), 60)
+            
+            px_par_mm = hauteur_visuelle_px / t3_haut_maquette
 
-        paliers_mm = list(range(0, int(t3_haut_maquette) + 1, 10))
-        if paliers_mm[-1] != int(t3_haut_maquette):
-            paliers_mm.append(int(t3_haut_maquette))
+            paliers_mm = list(range(0, int(t3_haut_maquette) + 1, 10))
+            if paliers_mm[-1] != int(t3_haut_maquette):
+                paliers_mm.append(int(t3_haut_maquette))
 
-        html_gabarit = f"""
-        <div style="display: flex; font-family: monospace; background-color: #f8f9fa; padding: 20px; border-radius: 5px; min-height: {hauteur_visuelle_px + 60}px;">
-            <div style="position: relative; height: {hauteur_visuelle_px}px; width: 60px; border-right: 2px solid #ccc; text-align: right; padding-right: 8px;">
-        """
-        for mm in paliers_mm:
-            pos_depuis_bas = mm * px_par_mm
-            correction_top = hauteur_visuelle_px - pos_depuis_bas - 6
-            html_gabarit += f'<div style="position: absolute; top: {correction_top}px; right: 8px; font-size: 11px; color: #555;">{mm} mm —</div>'
+            html_gabarit = f"""
+            <div style="display: flex; font-family: monospace; background-color: #f8f9fa; padding: 20px; border-radius: 5px; min-height: {hauteur_visuelle_px + 60}px;">
+                <div style="position: relative; height: {hauteur_visuelle_px}px; width: 60px; border-right: 2px solid #ccc; text-align: right; padding-right: 8px;">
+            """
+            for mm in paliers_mm:
+                pos_depuis_bas = mm * px_par_mm
+                correction_top = hauteur_visuelle_px - pos_depuis_bas - 6
+                html_gabarit += f'<div style="position: absolute; top: {correction_top}px; right: 8px; font-size: 11px; color: #555;">{mm} mm —</div>'
 
-        html_gabarit += f"""
-            </div>
-            <div style="position: relative; width: {largeur_visuelle_px}px; height: {hauteur_visuelle_px}px; background-color: {couleur_fond_html}; border: 2px solid #111; margin-left: 20px; box-shadow: inset 0 0 10px rgba(0,0,0,0.3); transition: all 0.2s ease;">
-        """
+            html_gabarit += f"""
+                </div>
+                <div style="position: relative; width: {largeur_visuelle_px}px; height: {hauteur_visuelle_px}px; background-color: {couleur_fond_html}; border: 2px solid #111; margin-left: 20px; box-shadow: inset 0 0 10px rgba(0,0,0,0.3); transition: all 0.2s ease;">
+            """
 
-        # 1. Dessin des pièces de titre (Multiligne)
-        if has_pieces and df_pieces_edite is not None and not df_pieces_edite.empty:
-            for _, row_p in df_pieces_edite.iterrows():
-                pos_p_mm = row_p["Position (mm depuis le bas)"]
-                haut_p_mm = row_p["Hauteur pièce (mm)"]
-                c_p_nom = row_p["Couleur pièce"]
-                m_p_nom = row_p["Couleur marquage"]
-                txt_p = str(row_p.get("Titre sur pièce", "")).strip()
+            # 1. Dessin des pièces de titre (Multiligne)
+            if has_pieces and df_pieces_edite is not None and not df_pieces_edite.empty:
+                for _, row_p in df_pieces_edite.iterrows():
+                    pos_p_mm = row_p["Position (mm depuis le bas)"]
+                    haut_p_mm = row_p["Hauteur pièce (mm)"]
+                    c_p_nom = row_p["Couleur pièce"]
+                    m_p_nom = row_p["Couleur marquage"]
+                    txt_p = str(row_p.get("Titre sur pièce", "")).strip()
 
-                if pd.notna(pos_p_mm) and pd.notna(haut_p_mm):
-                    bg_piece_html = HEX_COULEURS_TOILE.get(c_p_nom, "#8b0000")
-                    txt_piece_html = HEX_COULEURS_MARQUAGE.get(m_p_nom, "#ffd700")
+                    if pd.notna(pos_p_mm) and pd.notna(haut_p_mm):
+                        bg_piece_html = HEX_COULEURS_TOILE.get(c_p_nom, "#8b0000")
+                        txt_piece_html = HEX_COULEURS_MARQUAGE.get(m_p_nom, "#ffd700")
 
-                    haut_p_px = haut_p_mm * px_par_mm
-                    bottom_p_px = pos_p_mm * px_par_mm
-                    top_p_px = hauteur_visuelle_px - bottom_p_px - haut_p_px
+                        haut_p_px = haut_p_mm * px_par_mm
+                        bottom_p_px = pos_p_mm * px_par_mm
+                        top_p_px = hauteur_visuelle_px - bottom_p_px - haut_p_px
 
-                    if txt_p and txt_p != "None":
-                        lignes_p = txt_p.split("\n")
-                        texte_piece_html = "<br>".join([f"<span>{l.strip()}</span>" for l in lignes_p if l.strip()])
+                        if txt_p and txt_p != "None":
+                            lignes_p = txt_p.split("\n")
+                            texte_piece_html = "<br>".join([f"<span>{l.strip()}</span>" for l in lignes_p if l.strip()])
+                        else:
+                            texte_piece_html = ""
+
+                        html_gabarit += f"""
+                        <div style="position: absolute; top: {top_p_px}px; width: 100%; height: {haut_p_px}px; background-color: {bg_piece_html}; border: 1.5px dashed #fff; box-shadow: 0 0 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden;" title="Pièce de titre ({c_p_nom}) - H:{haut_p_mm}mm">
+                            <div style="color: {txt_piece_html}; font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.2; padding: 0 2px;">{texte_piece_html}</div>
+                        </div>
+                        """
+
+            # 2. Dessin des lignes de titrage directes sur le dos
+            for _, row_data in df_edite_lignes.iterrows():
+                mm_pos = row_data["Hauteur du titre (mm)"]
+                txt = str(row_data["Titrage"]).strip()
+
+                if pd.notna(mm_pos) and txt and txt != "None" and txt != "":
+                    taille_estimee_texte_px = len(txt) * 8.5
+
+                    if taille_estimee_texte_px > (largeur_visuelle_px - 6):
+                        coloration_ligne = "#d9534f"
+                        fond_alerte = "background-color: rgba(217, 83, 79, 0.2); border: 1px dashed #d9534f;"
                     else:
-                        texte_piece_html = ""
+                        coloration_ligne = couleur_texte_html
+                        fond_alerte = ""
+
+                    bottom_offset = float(mm_pos) * px_par_mm
+                    top_offset_px = hauteur_visuelle_px - bottom_offset - 8
 
                     html_gabarit += f"""
-                    <div style="position: absolute; top: {top_p_px}px; width: 100%; height: {haut_p_px}px; background-color: {bg_piece_html}; border: 1.5px dashed #fff; box-shadow: 0 0 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden;" title="Pièce de titre ({c_p_nom}) - H:{haut_p_mm}mm">
-                        <div style="color: {txt_piece_html}; font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.2; padding: 0 2px;">{texte_piece_html}</div>
+                    <div style="position: absolute; top: {top_offset_px}px; width: 100%; text-align: center; color: {coloration_ligne}; font-size: 13px; font-weight: bold; {fond_alerte} text-transform: uppercase; white-space: nowrap; overflow: visible;" title="Position: {mm_pos}mm">
+                        {txt}
                     </div>
                     """
 
-        # 2. Dessin des lignes de titrage directes sur le dos
-        for _, row_data in df_edite_lignes.iterrows():
-            mm_pos = row_data["Hauteur du titre (mm)"]
-            txt = str(row_data["Titrage"]).strip()
-
-            if pd.notna(mm_pos) and txt and txt != "None" and txt != "":
-                taille_estimee_texte_px = len(txt) * 8.5
-
-                if taille_estimee_texte_px > (largeur_visuelle_px - 6):
-                    coloration_ligne = "#d9534f"
-                    fond_alerte = "background-color: rgba(217, 83, 79, 0.2); border: 1px dashed #d9534f;"
-                else:
-                    coloration_ligne = couleur_texte_html
-                    fond_alerte = ""
-
-                bottom_offset = float(mm_pos) * px_par_mm
-                top_offset_px = hauteur_visuelle_px - bottom_offset - 8
-
-                html_gabarit += f"""
-                <div style="position: absolute; top: {top_offset_px}px; width: 100%; text-align: center; color: {coloration_ligne}; font-size: 13px; font-weight: bold; {fond_alerte} text-transform: uppercase; white-space: nowrap; overflow: visible;" title="Position: {mm_pos}mm">
-                    {txt}
+            html_gabarit += f"""
                 </div>
-                """
-
-        html_gabarit += f"""
             </div>
-        </div>
-        """
-        st.components.v1.html(html_gabarit, height=hauteur_visuelle_px + 80)
+            """
+            st.components.v1.html(html_gabarit, height=hauteur_visuelle_px + 80)

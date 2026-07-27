@@ -42,8 +42,10 @@ def generer_automatiquement_numero_train(client):
     if trains:
         trains.sort(reverse=True)
         str_num = trains[0][5:]
-        try: prochain_ordre = int(str_num) + 1
-        except ValueError: prochain_ordre = 1
+        try:
+            prochain_ordre = int(str_num) + 1
+        except ValueError:
+            prochain_ordre = 1
     else:
         prochain_ordre = 1
     return f"{prefixe}{prochain_ordre:03d}"
@@ -64,8 +66,10 @@ def recuperer_livre_specifique(client, train, num_livre):
 def supprimer_livre_specifique(client, train, num_livre):
     supabase = obtenir_client_supabase()
     try:
-        try: supabase.table("titrage_system3").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).eq("numero_livre", num_livre).execute()
-        except Exception: pass
+        try:
+            supabase.table("titrage_system3").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).eq("numero_livre", num_livre).execute()
+        except Exception:
+            pass
         supabase.table("fiches_livres").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).eq("numero_livre", num_livre).execute()
         return True
     except Exception as e:
@@ -88,6 +92,7 @@ def enregistrer_ou_mettre_a_jour_livre(donnees):
     supabase = obtenir_client_supabase()
     supabase.table("fiches_livres").upsert(donnees).execute()
 
+# --- CONFIGURATION STREAMLIT ---
 st.set_page_config(page_title="Saisie & Suivi des Livres", layout="wide")
 st.title("📚 Saisie de Fiche — Devis + Traitements")
 
@@ -175,8 +180,10 @@ else:
 
             st.markdown("**Reprographie :**")
             col_scanne, col_report, _ = st.columns([1, 1, 3])
-            with col_scanne: repro_scanne = st.checkbox("Scannée", value=bool(donnees_edition["repro_scanne"]) if donnees_edition else False)
-            with col_report: repro_report = st.checkbox("Report", value=bool(donnees_edition["repro_report"]) if donnees_edition else False)
+            with col_scanne: 
+                repro_scanne = st.checkbox("Scannée", value=bool(donnees_edition["repro_scanne"]) if donnees_edition else False)
+            with col_report: 
+                repro_report = st.checkbox("Report", value=bool(donnees_edition["repro_report"]) if donnees_edition else False)
 
             st.write("---")
             st.subheader("3. Désignation format")
@@ -198,7 +205,8 @@ else:
             list_cou = ["Cahiers machine", "Surjeté", "Cahier manuel"]
             with c_trt3: type_couture = st.selectbox("Type de couture", list_cou, index=list_cou.index(donnees_edition["type_couture"]) if donnees_edition and donnees_edition["type_couture"] in list_cou else 0)
 
-            agraphes = False; nombre_cahiers = 0
+            agraphes = False
+            nombre_cahiers = 0
             if type_couture == "Cahier manuel":
                 c_cah1, c_cah2 = st.columns(2)
                 with c_cah1: agraphes = st.checkbox("Présence d'agraphes", value=bool(donnees_edition["agraphes"]) if donnees_edition else False)
@@ -207,30 +215,30 @@ else:
             st.write("---")
             st.subheader("5. Spécifications du titrage")
             sans_titrage = st.checkbox("**Pas de titrage**", value=bool(donnees_edition["sans_titrage"]) if donnees_edition else False)
-            titrage_sens = "N/A"; lignes_sup = 0; titrage_couleur = "N/A"; police = "N/A"
+            titrage_sens = "N/A"
+            lignes_sup = 0
+            titrage_couleur = "N/A"
+            police = "N/A"
+            
             if not sans_titrage:
                 c_tit1, c_tit2, c_tit3, c_tit4 = st.columns(4)
-                # MODIFICATION 1 : Sens -> "Classique" à la place de "Travers"
                 with c_tit1: titrage_sens = st.radio("Sens", ["Long", "Classique"], horizontal=True, index=0 if donnees_edition and donnees_edition["titrage_sens"] == "Long" else (1 if donnees_edition and donnees_edition["titrage_sens"] in ["Classique", "Travers"] else 0))
                 with c_tit2: lignes_sup = st.number_input("Lignes sup", min_value=0, value=int(donnees_edition["lignes_sup"]) if donnees_edition else 0, step=1)
-                # MODIFICATION 3 : Ajout de "AUTRE" dans le marquage
                 list_marq = ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
                 with c_tit3: titrage_couleur = st.selectbox("Marquage", list_marq, index=list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0)
-                # MODIFICATION 2 : Police -> "Baton" à la place de "Baskerville"
                 with c_tit4: police = st.radio("Police", ["Elzévir", "Baton"], horizontal=True, index=0 if donnees_edition and donnees_edition["police"] == "Elzévir" else (1 if donnees_edition and donnees_edition["police"] in ["Baton", "Baskerville"] else 0))
 
             st.write("---")
             st.subheader("6. Habillage")
             c_toi1, c_toi2 = st.columns(2)
-            # MODIFICATION 4 : "Fantasia" au lieu de "Fantaisie" & "Métisse" au lieu de "Autre"
             list_toile = ["Buckram", "Fantasia", "Métisse"]
             with c_toi1: type_toile = st.selectbox("Type de toile", list_toile, index=list_toile.index(donnees_edition["type_toile"]) if donnees_edition and donnees_edition["type_toile"] in list_toile else 0)
             with c_toi2: couleur = st.selectbox("Couleur de la toile", options=liste_couleurs, index=liste_couleurs.index(donnees_edition["couleur"]) if donnees_edition and donnees_edition["couleur"] in liste_couleurs else 0)
 
-           st.write("---")
+            st.write("---")
             st.subheader("7. Pièce de titre & Suppléments")
             
-            # Pièce de titre désactivée par défaut si nouvelle fiche (ou prend la valeur enregistrée)
+            # Pièce de titre désactivée par défaut
             cocher_piece_titre = st.checkbox(
                 "**Activer une pièce de titre**", 
                 value=bool(donnees_edition["cocher_piece_titre"]) if donnees_edition else False
@@ -238,9 +246,7 @@ else:
             
             couleur_pieces_toile = "N/A"
             marquage_pieces = "N/A"
-            
-            # Valeur par défaut du nombre de pièces (1)
-            valeur_nb_pieces_defaut = int(donnees_edition["nombre_pieces_titre"]) if (donnees_edition and "nombre_pieces_titre" in donnees_edition) else 1
+            valeur_nb_pieces_defaut = int(donnees_edition["nombre_pieces_titre"]) if (donnees_edition and "nombre_pieces_titre" in donnees_edition and donnees_edition["nombre_pieces_titre"] is not None) else 1
             
             if cocher_piece_titre:
                 c_p1, c_p2, c_p3 = st.columns(3)
@@ -266,6 +272,7 @@ else:
                     )
             else: 
                 nombre_pieces_titre = valeur_nb_pieces_defaut
+
             st.write("---")
             st.subheader("8. Suppléments optionnels (Max 4)")
 
@@ -300,12 +307,35 @@ else:
 
             st.write("---")
             if st.button("💾 Valider l'enregistrement", type="primary", use_container_width=True):
-              donnees_fiche = {
-                    "nom_client": nom_client_valide.strip(), "numero_train": numero_train.strip(), "numero_livre": num_livre_en_cours,
-                    "nature_doc": nature_doc, "text_doc": text_doc, "option_autre": option_autre, "repro_scanne": repro_scanne, "repro_report": repro_report,
-                    "hauteur": hauteur, "largeur": largeur, "epaisseur": epaisseur, "ne_pas_rogner": ne_pas_rogner, "traitement": traitement, "type_reliure": type_reliure, "type_couture": type_couture,
-                    "agraphes": agraphes, "nombre_cahiers": nombre_cahiers, "sans_titrage": sans_titrage, "titrage_sens": titrage_sens, "lignes_sup": lignes_sup, "titrage_couleur": titrage_couleur, "police": police, "type_toile": type_toile, "couleur": couleur,
-                    "cocher_piece_titre": cocher_piece_titre, "couleur_pieces_toile": couleur_pieces_toile, "marquage_pieces": marquage_pieces, "nombre_pieces_titre": nombre_pieces_titre,
+                donnees_fiche = {
+                    "nom_client": nom_client_valide.strip(), 
+                    "numero_train": numero_train.strip(), 
+                    "numero_livre": num_livre_en_cours,
+                    "nature_doc": nature_doc, 
+                    "text_doc": text_doc, 
+                    "option_autre": option_autre, 
+                    "repro_scanne": repro_scanne, 
+                    "repro_report": repro_report,
+                    "hauteur": hauteur, 
+                    "largeur": largeur, 
+                    "epaisseur": epaisseur, 
+                    "ne_pas_rogner": ne_pas_rogner, 
+                    "traitement": traitement, 
+                    "type_reliure": type_reliure, 
+                    "type_couture": type_couture,
+                    "agraphes": agraphes, 
+                    "nombre_cahiers": nombre_cahiers, 
+                    "sans_titrage": sans_titrage, 
+                    "titrage_sens": titrage_sens, 
+                    "lignes_sup": lignes_sup, 
+                    "titrage_couleur": titrage_couleur, 
+                    "police": police, 
+                    "type_toile": type_toile, 
+                    "couleur": couleur,
+                    "cocher_piece_titre": cocher_piece_titre, 
+                    "couleur_pieces_toile": couleur_pieces_toile, 
+                    "marquage_pieces": marquage_pieces, 
+                    "nombre_pieces_titre": nombre_pieces_titre,
                     "supplement_1": "" if supplement_1 == "-- Aucun --" else supplement_1, 
                     "supplement_2": "" if supplement_2 == "-- Aucun --" else supplement_2, 
                     "supplement_3": "" if supplement_3 == "-- Aucun --" else supplement_3, 
@@ -313,7 +343,8 @@ else:
                 }
                 enregistrer_ou_mettre_a_jour_livre(donnees_fiche)
                 st.success("Données enregistrées avec succès sur Supabase !")
-                if "livre_selectionne" in st.session_state: del st.session_state.livre_selectionne
+                if "livre_selectionne" in st.session_state: 
+                    del st.session_state.livre_selectionne
                 st.rerun()
 
         with col_visualisation:

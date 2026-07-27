@@ -92,12 +92,37 @@ def enregistrer_ou_mettre_a_jour_livre(donnees):
     supabase = obtenir_client_supabase()
     supabase.table("fiches_livres").upsert(donnees).execute()
 
+# --- GESTION DU RÉFÉRENTIEL TOILES & COULEURS ---
+def charger_types_toile_supabase():
+    """Récupère la liste unique des types de toile actifs depuis Supabase."""
+    supabase = obtenir_client_supabase()
+    try:
+        reponse = supabase.table("referentiel_toiles").select("type_toile").execute()
+        types = sorted(list(set([row["type_toile"] for row in reponse.data])))
+        return types if types else ["Buckram", "Fantasia", "Métisse"]
+    except Exception:
+        return ["Buckram", "Fantasia", "Métisse"]
+
+def charger_couleurs_par_toile_supabase(type_toile_selectionne):
+    """Récupère uniquement les couleurs associées à la toile sélectionnée."""
+    supabase = obtenir_client_supabase()
+    try:
+        reponse = supabase.table("referentiel_toiles") \
+            .select("couleur") \
+            .eq("type_toile", type_toile_selectionne) \
+            .order("couleur") \
+            .execute()
+        couleurs = [row["couleur"] for row in reponse.data]
+        return couleurs if couleurs else liste_couleurs_generique
+    except Exception:
+        return liste_couleurs_generique
+
 # --- CONFIGURATION STREAMLIT ---
 st.set_page_config(page_title="Saisie & Suivi des Livres", layout="wide")
 st.title("📚 Saisie de Fiche — Devis + Traitements")
 
 liste_clients_existants = lister_tous_les_clients()
-liste_couleurs = ["Noir", "Rouge", "Bleu", "Vert", "Jaune", "Orange", "Violet", "Marron"]
+liste_couleurs_generique = ["Noir", "Rouge", "Bleu", "Vert", "Jaune", "Orange", "Violet", "Marron"]
 
 OPTIONS_SUPPLEMENTS = [
     "Plats conservés", "Onglets", "Doublage japon", "Charnières toile", 
@@ -231,14 +256,34 @@ else:
             st.write("---")
             st.subheader("6. Habillage")
             c_toi1, c_toi2 = st.columns(2)
-            list_toile = ["Buckram", "Fantasia", "Métisse"]
-            with c_toi1: type_toile = st.selectbox("Type de toile", list_toile, index=list_toile.index(donnees_edition["type_toile"]) if donnees_edition and donnees_edition["type_toile"] in list_toile else 0)
-            with c_toi2: couleur = st.selectbox("Couleur de la toile", options=liste_couleurs, index=liste_couleurs.index(donnees_edition["couleur"]) if donnees_edition and donnees_edition["couleur"] in liste_couleurs else 0)
+            
+            # 1. Sélection de la Toile depuis Supabase
+            list_toile = charger_types_toile_supabase()
+            
+            with c_toi1: 
+                type_toile = st.selectbox(
+                    "Type de toile", 
+                    list_toile, 
+                    index=list_toile.index(donnees_edition["type_toile"]) if donnees_edition and donnees_edition["type_toile"] in list_toile else 0
+                )
+            
+            # 2. Récupération des couleurs filtrées UNIQUEMENT pour la toile choisie
+            couleurs_filtrees = charger_couleurs_par_toile_supabase(type_toile)
+            
+            with c_toi2: 
+                if couleurs_filtrees:
+                    couleur = st.selectbox(
+                        "Couleur de la toile", 
+                        options=couleurs_filtrees, 
+                        index=couleurs_filtrees.index(donnees_edition["couleur"]) if donnees_edition and donnees_edition["couleur"] in couleurs_filtrees else 0
+                    )
+                else:
+                    st.warning("⚠️ Aucune couleur configurée pour cette toile.")
+                    couleur = "N/A"
 
             st.write("---")
             st.subheader("7. Pièce de titre & Suppléments")
             
-            # Pièce de titre désactivée par défaut
             cocher_piece_titre = st.checkbox(
                 "**Activer une pièce de titre**", 
                 value=bool(donnees_edition["cocher_piece_titre"]) if donnees_edition else False
@@ -253,8 +298,8 @@ else:
                 with c_p1: 
                     couleur_pieces_toile = st.selectbox(
                         "Couleur de la pièce", 
-                        options=liste_couleurs, 
-                        index=liste_couleurs.index(donnees_edition["couleur_pieces_toile"]) if donnees_edition and donnees_edition["couleur_pieces_toile"] in liste_couleurs else 0
+                        options=liste_couleurs_generique, 
+                        index=liste_couleurs_generique.index(donnees_edition["couleur_pieces_toile"]) if donnees_edition and donnees_edition["couleur_pieces_toile"] in liste_couleurs_generique else 0
                     )
                 list_mp = ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
                 with c_p2: 

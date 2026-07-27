@@ -44,32 +44,38 @@ def charger_couleurs_par_toile_supabase(type_toile):
         return ["Noir", "Rouge", "Bleu", "Vert", "Jaune", "Orange", "Violet", "Marron"]
 
 def recuperer_specs_livre(client, train, num_livre):
-    """Récupère toutes les caractéristiques physiques, pièces de titre et marquage de la fiche"""
+    """Récupère en toute sécurité les caractéristiques du livre avec typage explicite"""
     supabase = obtenir_client_supabase()
-    reponse = supabase.table("fiches_livres").select(
-        "largeur, hauteur, epaisseur, type_toile, couleur, titrage_couleur, cocher_piece_titre, couleur_pieces_toile, marquage_pieces, nombre_pieces_titre"
-    ).eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
-    
-    if reponse.data:
-        r = reponse.data[0]
-        return (
-            r.get("hauteur") or 220,
-            r.get("largeur") or 160,
-            r.get("epaisseur") or 20,
-            r.get("type_toile") or "Buckram",
-            r.get("couleur") or "Noir",
-            r.get("titrage_couleur") or "OR",
-            bool(r.get("cocher_piece_titre", False)),
-            r.get("couleur_pieces_toile") or "Rouge",
-            r.get("marquage_pieces") or "OR",
-            r.get("nombre_pieces_titre") or 1
-        )
+    try:
+        num_livre_int = int(num_livre)
+        reponse = supabase.table("fiches_livres").select(
+            "largeur, hauteur, epaisseur, type_toile, couleur, titrage_couleur, cocher_piece_titre, couleur_pieces_toile, marquage_pieces, nombre_pieces_titre"
+        ).eq("nom_client", str(client).strip()).eq("numero_train", str(train).strip()).eq("numero_livre", num_livre_int).execute()
+        
+        if reponse.data:
+            r = reponse.data[0]
+            return (
+                r.get("hauteur") or 220,
+                r.get("largeur") or 160,
+                r.get("epaisseur") or 20,
+                r.get("type_toile") or "Buckram",
+                r.get("couleur") or "Noir",
+                r.get("titrage_couleur") or "OR",
+                bool(r.get("cocher_piece_titre", False)),
+                r.get("couleur_pieces_toile") or "Rouge",
+                r.get("marquage_pieces") or "OR",
+                r.get("nombre_pieces_titre") or 1
+            )
+    except Exception as e:
+        st.warning(f"Chargement des valeurs par défaut suite à un ajustement de structure : {e}")
+        
     return 220, 160, 20, "Buckram", "Noir", "OR", False, "Rouge", "OR", 1
 
 def recuperer_titrage_enregistre(client, train, num_livre):
     supabase = obtenir_client_supabase()
     try:
-        reponse = supabase.table("titrage_system3").select("lignes_json, pieces_json").eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
+        num_livre_int = int(num_livre)
+        reponse = supabase.table("titrage_system3").select("lignes_json, pieces_json").eq("nom_client", str(client).strip()).eq("numero_train", str(train).strip()).eq("numero_livre", num_livre_int).execute()
         if reponse.data:
             rec = reponse.data[0]
             df_lignes = pd.DataFrame(json.loads(rec["lignes_json"])) if rec.get("lignes_json") else None
@@ -82,22 +88,27 @@ def recuperer_titrage_enregistre(client, train, num_livre):
 def sauvegarder_titrage_sur_base(client, train, num_livre, date_saisie, df_lignes, df_pieces, specs_modifiees):
     supabase = obtenir_client_supabase()
     
+    num_livre_int = int(num_livre)
     json_lignes = json.dumps(df_lignes.to_dict(orient="records"), ensure_ascii=False)
     json_pieces = json.dumps(df_pieces.to_dict(orient="records"), ensure_ascii=False) if df_pieces is not None else "[]"
     
     donnees_titrage = {
-        "nom_client": client, "numero_train": train, "numero_livre": int(num_livre),
-        "date_saisie": str(date_saisie), "lignes_json": json_lignes, "pieces_json": json_pieces
+        "nom_client": str(client).strip(), 
+        "numero_train": str(train).strip(), 
+        "numero_livre": num_livre_int,
+        "date_saisie": str(date_saisie), 
+        "lignes_json": json_lignes, 
+        "pieces_json": json_pieces
     }
     
     try:
-        check = supabase.table("titrage_system3").select("numero_livre").eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
+        check = supabase.table("titrage_system3").select("numero_livre").eq("nom_client", str(client).strip()).eq("numero_train", str(train).strip()).eq("numero_livre", num_livre_int).execute()
         if check.data:
-            supabase.table("titrage_system3").update(donnees_titrage).eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
+            supabase.table("titrage_system3").update(donnees_titrage).eq("nom_client", str(client).strip()).eq("numero_train", str(train).strip()).eq("numero_livre", num_livre_int).execute()
         else:
             supabase.table("titrage_system3").insert(donnees_titrage).execute()
             
-        supabase.table("fiches_livres").update(specs_modifiees).eq("nom_client", client).eq("numero_train", train).eq("numero_livre", num_livre).execute()
+        supabase.table("fiches_livres").update(specs_modifiees).eq("nom_client", str(client).strip()).eq("numero_train", str(train).strip()).eq("numero_livre", num_livre_int).execute()
         return True
     except Exception as e:
         st.error(f"Erreur technique lors de l'enregistrement : {e}")

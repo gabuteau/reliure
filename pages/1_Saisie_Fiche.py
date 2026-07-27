@@ -300,12 +300,12 @@ else:
 
             st.write("---")
             if st.button("💾 Valider l'enregistrement", type="primary", use_container_width=True):
-                donnees_fiche = {
+              donnees_fiche = {
                     "nom_client": nom_client_valide.strip(), "numero_train": numero_train.strip(), "numero_livre": num_livre_en_cours,
                     "nature_doc": nature_doc, "text_doc": text_doc, "option_autre": option_autre, "repro_scanne": repro_scanne, "repro_report": repro_report,
                     "hauteur": hauteur, "largeur": largeur, "epaisseur": epaisseur, "ne_pas_rogner": ne_pas_rogner, "traitement": traitement, "type_reliure": type_reliure, "type_couture": type_couture,
                     "agraphes": agraphes, "nombre_cahiers": nombre_cahiers, "sans_titrage": sans_titrage, "titrage_sens": titrage_sens, "lignes_sup": lignes_sup, "titrage_couleur": titrage_couleur, "police": police, "type_toile": type_toile, "couleur": couleur,
-                    "cocher_piece_titre": cocher_piece_titre, "couleur_pieces_toile": couleur_pieces_toile, "marquage_pieces": marquage_pieces, "hauteur_maquette": hauteur_maquette,
+                    "cocher_piece_titre": cocher_piece_titre, "couleur_pieces_toile": couleur_pieces_toile, "marquage_pieces": marquage_pieces, "nombre_pieces_titre": nombre_pieces_titre,
                     "supplement_1": "" if supplement_1 == "-- Aucun --" else supplement_1, 
                     "supplement_2": "" if supplement_2 == "-- Aucun --" else supplement_2, 
                     "supplement_3": "" if supplement_3 == "-- Aucun --" else supplement_3, 

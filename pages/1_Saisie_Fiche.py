@@ -227,20 +227,45 @@ else:
             with c_toi1: type_toile = st.selectbox("Type de toile", list_toile, index=list_toile.index(donnees_edition["type_toile"]) if donnees_edition and donnees_edition["type_toile"] in list_toile else 0)
             with c_toi2: couleur = st.selectbox("Couleur de la toile", options=liste_couleurs, index=liste_couleurs.index(donnees_edition["couleur"]) if donnees_edition and donnees_edition["couleur"] in liste_couleurs else 0)
 
-            st.write("---")
+           st.write("---")
             st.subheader("7. Pièce de titre & Suppléments")
-            cocher_piece_titre = st.checkbox("**Activer une pièce de titre**", value=bool(donnees_edition["cocher_piece_titre"]) if donnees_edition else False)
-            couleur_pieces_toile = "N/A"; marquage_pieces = "N/A"
-            valeur_maquette_defaut = int(donnees_edition["hauteur_maquette"]) if donnees_edition else (hauteur + 5)
+            
+            # Pièce de titre désactivée par défaut si nouvelle fiche (ou prend la valeur enregistrée)
+            cocher_piece_titre = st.checkbox(
+                "**Activer une pièce de titre**", 
+                value=bool(donnees_edition["cocher_piece_titre"]) if donnees_edition else False
+            )
+            
+            couleur_pieces_toile = "N/A"
+            marquage_pieces = "N/A"
+            
+            # Valeur par défaut du nombre de pièces (1)
+            valeur_nb_pieces_defaut = int(donnees_edition["nombre_pieces_titre"]) if (donnees_edition and "nombre_pieces_titre" in donnees_edition) else 1
+            
             if cocher_piece_titre:
                 c_p1, c_p2, c_p3 = st.columns(3)
-                with c_p1: couleur_pieces_toile = st.selectbox("Couleur de la pièce", options=liste_couleurs, index=liste_couleurs.index(donnees_edition["couleur_pieces_toile"]) if donnees_edition and donnees_edition["couleur_pieces_toile"] in liste_couleurs else 0)
-                # MODIFICATION 3 (Bis) : Ajout de "AUTRE" dans le marquage des pièces de titre
+                with c_p1: 
+                    couleur_pieces_toile = st.selectbox(
+                        "Couleur de la pièce", 
+                        options=liste_couleurs, 
+                        index=liste_couleurs.index(donnees_edition["couleur_pieces_toile"]) if donnees_edition and donnees_edition["couleur_pieces_toile"] in liste_couleurs else 0
+                    )
                 list_mp = ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
-                with c_p2: marquage_pieces = st.selectbox("Marquage de la pièce", list_mp, index=list_mp.index(donnees_edition["marquage_pieces"]) if donnees_edition and donnees_edition["marquage_pieces"] in list_mp else 0)
-                with c_p3: hauteur_maquette = st.number_input("Hauteur maquette (mm)", min_value=0, value=valeur_maquette_defaut, step=1)
-            else: hauteur_maquette = valeur_maquette_defaut
-
+                with c_p2: 
+                    marquage_pieces = st.selectbox(
+                        "Marquage de la pièce", 
+                        list_mp, 
+                        index=list_mp.index(donnees_edition["marquage_pieces"]) if donnees_edition and donnees_edition["marquage_pieces"] in list_mp else 0
+                    )
+                with c_p3: 
+                    nombre_pieces_titre = st.number_input(
+                        "Nombre de pièce(s) de titre", 
+                        min_value=1, 
+                        value=valeur_nb_pieces_defaut, 
+                        step=1
+                    )
+            else: 
+                nombre_pieces_titre = valeur_nb_pieces_defaut
             st.write("---")
             st.subheader("8. Suppléments optionnels (Max 4)")
 

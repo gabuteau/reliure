@@ -51,15 +51,18 @@ def recuperer_griffe_client(nom_client):
   try:
     reponse = (
         supabase.table("clients")
-        .select("griffe")
+        .select("griffe, griffe_position_mm")
         .eq("nom", nom_client)
         .execute()
     )
     if reponse.data:
-      return (reponse.data[0].get("griffe") or "").strip()
+      r = reponse.data[0]
+      txt = (r.get("griffe") or "").strip()
+      pos_mm = r.get("griffe_position_mm") or 15
+      return txt, pos_mm
   except Exception:
     pass
-  return ""
+  return "", 15
 
 
 def charger_types_toile_supabase():
@@ -484,11 +487,8 @@ def generer_image_gabarit(
   # 5. Griffe du client avec retour à la ligne automatique (Auto-wrap)
   if griffe_texte:
     x_center = x_dos + (w_dos_px / 2)
-
-    # Nombre approx. de caractères par ligne selon la largeur utile du dos
     chars_max_par_ligne = max(int((w_dos_px - 8) / 7), 1)
 
-    # Découpage dynamique des mots
     mots = griffe_texte.replace("\n", " ").split()
     lignes_g = []
     ligne_courante = []
@@ -507,7 +507,6 @@ def generer_image_gabarit(
     txt_g_full = "\n".join(lignes_g)
     y_griffe_px = y_dos + h_dos_px - (griffe_pos_mm * px_par_mm)
 
-    # Contrôle de sécurité au cas où un mot unique est plus large que le dos
     bbox_g = draw.textbbox(
         (0, 0), txt_g_full, font=font_griffe, align="center"
     )
@@ -662,9 +661,9 @@ else:
         )
 
       # --- GESTION DE LA GRIFFE CLIENT ---
-      griffe_registree = recuperer_griffe_client(t3_client)
+      griffe_registree, griffe_pos_defaut = recuperer_griffe_client(t3_client)
       griffe_a_afficher = ""
-      griffe_hauteur_mm = 15
+      griffe_hauteur_mm = griffe_pos_defaut
 
       if griffe_registree:
         st.write("---")
@@ -679,9 +678,9 @@ else:
           if inclure_griffe:
             griffe_hauteur_mm = st.number_input(
                 "Position bas (mm)",
-                min_value=5,
-                max_value=100,
-                value=15,
+                min_value=0,
+                max_value=200,
+                value=int(griffe_pos_defaut),
                 step=1,
             )
             griffe_a_afficher = griffe_registree

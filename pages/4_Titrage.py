@@ -285,185 +285,108 @@ def generer_image_gabarit(
     df_lignes,
 ):
     facteur_px = 2.5
+    h_dos_px = max(min(int(haut_maquette * facteur_px), 600), 350)
+    w_dos_px = max(min(int(larg_dos * facteur_px), 250), 60)
+
+    w_regle_px = 80
+    w_totale = w_regle_px + w_dos_px + 30
+    h_totale = h_dos_px + 40
+
+    img = Image.new("RGBA", (w_totale, h_totale), (248, 249, 250, 255))
+    draw = ImageDraw.Draw(img)
 
     try:
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 12)
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 13)
         font_small = ImageFont.truetype("DejaVuSans.ttf", 10)
     except Exception:
         font = ImageFont.load_default()
         font_small = ImageFont.load_default()
 
+    px_par_mm = h_dos_px / haut_maquette
+
+    # 1. Règle graduée
+    draw.line(
+        [(w_regle_px, 20), (w_regle_px, 20 + h_dos_px)], fill="#cccccc", width=2
+    )
+
     paliers_mm = list(range(0, int(haut_maquette) + 1, 10))
     if paliers_mm[-1] != int(haut_maquette):
         paliers_mm.append(int(haut_maquette))
 
-    # --- RENDU HORIZONTAL (MODE LONG) ---
+    for mm in paliers_mm:
+        y_mm = 20 + h_dos_px - (mm * px_par_mm)
+        draw.line(
+            [(w_regle_px - 6, y_mm), (w_regle_px, y_mm)], fill="#555555", width=1
+        )
+        txt_mm = str(mm) + " mm"
+        draw.text(
+            (w_regle_px - 50, y_mm - 6), txt_mm, fill="#555555", font=font_small
+        )
+
+    # 2. Dos du livre
+    x_dos = w_regle_px + 15
+    y_dos = 20
+    draw.rectangle(
+        [(x_dos, y_dos), (x_dos + w_dos_px, y_dos + h_dos_px)],
+        fill=c_toile_hex,
+        outline="#111111",
+        width=2,
+    )
+
+    # 3. Pièces de titre
+    if has_pieces and df_pieces is not None and not df_pieces.empty:
+        for _, row_p in df_pieces.iterrows():
+            pos_p_mm = row_p["Position (mm depuis le bas)"]
+            haut_p_mm = row_p["Hauteur pièce (mm)"]
+            c_p_nom = row_p["Couleur pièce"]
+            m_p_nom = row_p["Couleur marquage"]
+            txt_p = str(row_p.get("Titre sur pièce", "")).strip()
+
+            if pd.notna(pos_p_mm) and pd.notna(haut_p_mm):
+                bg_p_hex = HEX_COULEURS_TOILE.get(c_p_nom, "#8b0000")
+                txt_p_hex = HEX_COULEURS_MARQUAGE.get(m_p_nom, "#ffd700")
+
+                h_p_px = haut_p_mm * px_par_mm
+                y_p_px = y_dos + h_dos_px - (pos_p_mm * px_par_mm) - h_p_px
+
+                draw.rectangle(
+                    [(x_dos, y_p_px), (x_dos + w_dos_px, y_p_px + h_p_px)],
+                    fill=bg_p_hex,
+                    outline="#ffffff",
+                    width=1,
+                )
+
+                if txt_p and txt_p != "None":
+                    lines_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
+                    txt_p_full = " ".join(lines_p).upper()
+                    draw.text(
+                        (x_dos + (w_dos_px / 2), y_p_px + (h_p_px / 2)),
+                        txt_p_full,
+                        fill=txt_p_hex,
+                        font=font,
+                        anchor="mm",
+                    )
+
+    # 4. Lignes directes sur le dos
+    if df_lignes is not None and not df_lignes.empty:
+        for _, row_l in df_lignes.iterrows():
+            mm_pos = row_l["Hauteur du titre (mm)"]
+            txt = str(row_l["Titrage"]).strip().upper()
+
+            if pd.notna(mm_pos) and txt and txt != "None":
+                y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
+                x_center = x_dos + (w_dos_px / 2)
+                draw.text(
+                    (x_center, y_l_px),
+                    txt,
+                    fill=c_marq_hex,
+                    font=font,
+                    anchor="mm",
+                )
+
+    # Si le sens du titrage est Long : on pivote l'ensemble du gabarit (règle + dos + titres) à 90°
     if is_long:
-        w_dos_px = max(min(int(haut_maquette * facteur_px), 600), 350)
-        h_dos_px = max(min(int(larg_dos * facteur_px), 250), 60)
-
-        h_regle_px = 50
-        w_totale = w_dos_px + 40
-        h_totale = h_dos_px + h_regle_px + 30
-
-        img = Image.new("RGBA", (w_totale, h_totale), (248, 249, 250, 255))
-        draw = ImageDraw.Draw(img)
-
-        px_par_mm = w_dos_px / haut_maquette
-        x_dos = 20
-        y_dos = 20
-
-        # Dos couché à l'horizontale
-        draw.rectangle(
-            [(x_dos, y_dos), (x_dos + w_dos_px, y_dos + h_dos_px)],
-            fill=c_toile_hex,
-            outline="#111111",
-            width=2,
-        )
-
-        # Règle graduée en bas
-        y_regle = y_dos + h_dos_px + 10
-        draw.line([(x_dos, y_regle), (x_dos + w_dos_px, y_regle)], fill="#cccccc", width=2)
-
-        for mm in paliers_mm:
-            x_mm = x_dos + (mm * px_par_mm)
-            draw.line([(x_mm, y_regle), (x_mm, y_regle + 6)], fill="#555555", width=1)
-            txt_mm = str(mm)
-            draw.text((x_mm, y_regle + 10), txt_mm, fill="#555555", font=font_small, anchor="mt")
-
-        # Pièces de titre
-        if has_pieces and df_pieces is not None and not df_pieces.empty:
-            for _, row_p in df_pieces.iterrows():
-                pos_p_mm = row_p["Position (mm depuis le bas)"]
-                haut_p_mm = row_p["Hauteur pièce (mm)"]
-                c_p_nom = row_p["Couleur pièce"]
-                m_p_nom = row_p["Couleur marquage"]
-                txt_p = str(row_p.get("Titre sur pièce", "")).strip()
-
-                if pd.notna(pos_p_mm) and pd.notna(haut_p_mm):
-                    bg_p_hex = HEX_COULEURS_TOILE.get(c_p_nom, "#8b0000")
-                    txt_p_hex = HEX_COULEURS_MARQUAGE.get(m_p_nom, "#ffd700")
-
-                    w_p_px = haut_p_mm * px_par_mm
-                    x_p_px = x_dos + (pos_p_mm * px_par_mm)
-
-                    draw.rectangle(
-                        [(x_p_px, y_dos), (x_p_px + w_p_px, y_dos + h_dos_px)],
-                        fill=bg_p_hex,
-                        outline="#ffffff",
-                        width=1,
-                    )
-
-                    if txt_p and txt_p != "None":
-                        lines_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
-                        txt_p_full = " ".join(lines_p).upper()
-                        draw.text(
-                            (x_p_px + (w_p_px / 2), y_dos + (h_dos_px / 2)),
-                            txt_p_full,
-                            fill=txt_p_hex,
-                            font=font,
-                            anchor="mm",
-                        )
-
-        # Lignes directes sur le dos
-        if df_lignes is not None and not df_lignes.empty:
-            for _, row_l in df_lignes.iterrows():
-                mm_pos = row_l["Hauteur du titre (mm)"]
-                txt = str(row_l["Titrage"]).strip().upper()
-
-                if pd.notna(mm_pos) and txt and txt != "None":
-                    x_l_px = x_dos + (float(mm_pos) * px_par_mm)
-                    y_center = y_dos + (h_dos_px / 2)
-                    draw.text(
-                        (x_l_px, y_center),
-                        txt,
-                        fill=c_marq_hex,
-                        font=font,
-                        anchor="mm",
-                    )
-
-    # --- RENDU VERTICAL (MODE CLASSIQUE) ---
-    else:
-        h_dos_px = max(min(int(haut_maquette * facteur_px), 600), 350)
-        w_dos_px = max(min(int(larg_dos * facteur_px), 250), 60)
-
-        w_regle_px = 80
-        w_totale = w_regle_px + w_dos_px + 30
-        h_totale = h_dos_px + 40
-
-        img = Image.new("RGBA", (w_totale, h_totale), (248, 249, 250, 255))
-        draw = ImageDraw.Draw(img)
-
-        px_par_mm = h_dos_px / haut_maquette
-
-        # Règle graduée à gauche
-        draw.line([(w_regle_px, 20), (w_regle_px, 20 + h_dos_px)], fill="#cccccc", width=2)
-        for mm in paliers_mm:
-            y_mm = 20 + h_dos_px - (mm * px_par_mm)
-            draw.line([(w_regle_px - 6, y_mm), (w_regle_px, y_mm)], fill="#555555", width=1)
-            txt_mm = str(mm) + " mm"
-            draw.text((w_regle_px - 50, y_mm - 6), txt_mm, fill="#555555", font=font_small)
-
-        # Dos du livre
-        x_dos = w_regle_px + 15
-        y_dos = 20
-        draw.rectangle(
-            [(x_dos, y_dos), (x_dos + w_dos_px, y_dos + h_dos_px)],
-            fill=c_toile_hex,
-            outline="#111111",
-            width=2,
-        )
-
-        # Pièces de titre
-        if has_pieces and df_pieces is not None and not df_pieces.empty:
-            for _, row_p in df_pieces.iterrows():
-                pos_p_mm = row_p["Position (mm depuis le bas)"]
-                haut_p_mm = row_p["Hauteur pièce (mm)"]
-                c_p_nom = row_p["Couleur pièce"]
-                m_p_nom = row_p["Couleur marquage"]
-                txt_p = str(row_p.get("Titre sur pièce", "")).strip()
-
-                if pd.notna(pos_p_mm) and pd.notna(haut_p_mm):
-                    bg_p_hex = HEX_COULEURS_TOILE.get(c_p_nom, "#8b0000")
-                    txt_p_hex = HEX_COULEURS_MARQUAGE.get(m_p_nom, "#ffd700")
-
-                    h_p_px = haut_p_mm * px_par_mm
-                    y_p_px = y_dos + h_dos_px - (pos_p_mm * px_par_mm) - h_p_px
-
-                    draw.rectangle(
-                        [(x_dos, y_p_px), (x_dos + w_dos_px, y_p_px + h_p_px)],
-                        fill=bg_p_hex,
-                        outline="#ffffff",
-                        width=1,
-                    )
-
-                    if txt_p and txt_p != "None":
-                        lines_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
-                        txt_p_full = " ".join(lines_p).upper()
-                        draw.text(
-                            (x_dos + (w_dos_px / 2), y_p_px + (h_p_px / 2)),
-                            txt_p_full,
-                            fill=txt_p_hex,
-                            font=font,
-                            anchor="mm",
-                        )
-
-        # Lignes directes sur le dos
-        if df_lignes is not None and not df_lignes.empty:
-            for _, row_l in df_lignes.iterrows():
-                mm_pos = row_l["Hauteur du titre (mm)"]
-                txt = str(row_l["Titrage"]).strip().upper()
-
-                if pd.notna(mm_pos) and txt and txt != "None":
-                    y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
-                    x_center = x_dos + (w_dos_px / 2)
-                    draw.text(
-                        (x_center, y_l_px),
-                        txt,
-                        fill=c_marq_hex,
-                        font=font,
-                        anchor="mm",
-                    )
+        img = img.rotate(90, expand=True)
 
     return img
 
@@ -597,7 +520,7 @@ else:
                     "Sens du titrage",
                     ["Classique", "Long"],
                     index=idx_s,
-                    help="Classique = vertical | Long = dos couché à l'horizontale",
+                    help="Classique = vertical | Long = gabarit complet couché à l'horizontale",
                 )
 
             st.write("---")

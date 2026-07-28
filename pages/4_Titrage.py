@@ -296,7 +296,7 @@ def generer_image_gabarit(
     draw = ImageDraw.Draw(img)
 
     try:
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 12)
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 13)
         font_small = ImageFont.truetype("DejaVuSans.ttf", 10)
     except Exception:
         font = ImageFont.load_default()
@@ -361,20 +361,26 @@ def generer_image_gabarit(
                     txt_p_full = " ".join(lines_p).upper()
 
                     if is_long:
-                        # Rotation à 270° (lecture de bas en haut)
-                        txt_img = Image.new(
-                            "RGBA", (int(h_p_px), int(w_dos_px)), (0, 0, 0, 0)
-                        )
-                        d_txt = ImageDraw.Draw(txt_img)
+                        dummy_img = Image.new("RGBA", (1, 1))
+                        dummy_draw = ImageDraw.Draw(dummy_img)
+                        bbox = dummy_draw.textbbox((0, 0), txt_p_full, font=font)
+                        t_w = bbox[2] - bbox[0] + 10
+                        t_h = bbox[3] - bbox[1] + 10
+
+                        txt_canvas = Image.new("RGBA", (t_w, t_h), (0, 0, 0, 0))
+                        d_txt = ImageDraw.Draw(txt_canvas)
                         d_txt.text(
-                            (int(h_p_px / 2), int(w_dos_px / 2)),
+                            (t_w / 2, t_h / 2),
                             txt_p_full,
                             fill=txt_p_hex,
                             font=font,
                             anchor="mm",
                         )
-                        rot_img = txt_img.rotate(270, expand=True)
-                        img.paste(rot_img, (int(x_dos), int(y_p_px)), rot_img)
+
+                        rot_img = txt_canvas.rotate(270, expand=True)
+                        pos_x = int(x_dos + (w_dos_px / 2) - (rot_img.width / 2))
+                        pos_y = int(y_p_px + (h_p_px / 2) - (rot_img.height / 2))
+                        img.paste(rot_img, (pos_x, pos_y), rot_img)
                     else:
                         y_curr = y_p_px + (h_p_px / 2)
                         draw.text(
@@ -396,12 +402,25 @@ def generer_image_gabarit(
                 x_center = x_dos + (w_dos_px / 2)
 
                 if is_long:
-                    # Rotation de 270° pour orienter le texte de BAS en HAUT
-                    txt_img = Image.new("RGBA", (300, 30), (0, 0, 0, 0))
-                    d_txt = ImageDraw.Draw(txt_img)
-                    d_txt.text((150, 15), txt, fill=c_marq_hex, font=font, anchor="mm")
+                    # Calcul strict de la taille du texte
+                    dummy_img = Image.new("RGBA", (1, 1))
+                    dummy_draw = ImageDraw.Draw(dummy_img)
+                    bbox = dummy_draw.textbbox((0, 0), txt, font=font)
+                    t_w = bbox[2] - bbox[0] + 10
+                    t_h = bbox[3] - bbox[1] + 10
 
-                    rot_img = txt_img.rotate(270, expand=True)
+                    txt_canvas = Image.new("RGBA", (t_w, t_h), (0, 0, 0, 0))
+                    d_txt = ImageDraw.Draw(txt_canvas)
+                    d_txt.text(
+                        (t_w / 2, t_h / 2),
+                        txt,
+                        fill=c_marq_hex,
+                        font=font,
+                        anchor="mm",
+                    )
+
+                    # Rotation à 270° : la première lettre part du bas et monte
+                    rot_img = txt_canvas.rotate(270, expand=True)
                     pos_x = int(x_center - (rot_img.width / 2))
                     pos_y = int(y_l_px - (rot_img.height / 2))
                     img.paste(rot_img, (pos_x, pos_y), rot_img)

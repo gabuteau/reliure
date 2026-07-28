@@ -400,7 +400,7 @@ else:
             "Sens du titrage",
             ["Classique", "Long"],
             index=idx_s,
-            help="Classique = horizontal | Long = texte couché (de bas en haut)",
+            help="Classique = horizontal | Long = titrage couché le long du dos",
         )
 
       st.write("---")
@@ -569,7 +569,7 @@ else:
               + ")"
           )
 
-    # --- RENDU VISUEL DYNAMIQUE ---
+    # --- RENDU VISUEL DYNAMIQUE VECTORIEL (SVG) ---
     with col_gabarit_visualisation:
       st.subheader("📐 Gabarit dynamique du dos à dorer")
 
@@ -596,13 +596,14 @@ else:
           + str(hauteur_visuelle_px + 60)
           + 'px;">'
       )
+
+      # Règle graduée à gauche
       html_str += (
           '<div style="position: relative; height: '
           + str(hauteur_visuelle_px)
           + "px; width: 60px; border-right: 2px solid #ccc; text-align: right;"
           ' padding-right: 8px;">'
       )
-
       for mm in paliers_mm:
         pos_depuis_bas = mm * px_par_mm
         correction_top = hauteur_visuelle_px - pos_depuis_bas - 6
@@ -613,17 +614,24 @@ else:
             + str(mm)
             + " mm —</div>"
         )
-
       html_str += "</div>"
+
+      # Conteneur SVG du Dos du Livre
       html_str += (
-          '<div style="position: relative; width: '
+          '<div style="margin-left: 20px; width: '
           + str(largeur_visuelle_px)
           + "px; height: "
           + str(hauteur_visuelle_px)
-          + "px; background-color: "
+          + 'px;">'
+      )
+      html_str += (
+          '<svg width="'
+          + str(largeur_visuelle_px)
+          + '" height="'
+          + str(hauteur_visuelle_px)
+          + '" style="background-color: '
           + couleur_fond_html
-          + "; border: 2px solid #111; margin-left: 20px; box-shadow: inset 0"
-          ' 0 10px rgba(0,0,0,0.3); overflow: hidden;">'
+          + '; border: 2px solid #111; border-radius: 2px;">'
       )
 
       # 1. Pièces de titre
@@ -647,43 +655,60 @@ else:
             bottom_p_px = pos_p_mm * px_par_mm
             top_p_px = hauteur_visuelle_px - bottom_p_px - haut_p_px
 
-            if txt_p and txt_p != "None":
-              lignes_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
-              texte_piece_html = "<br>".join(
-                  ["<span>" + str(l) + "</span>" for l in lignes_p]
-              )
-            else:
-              texte_piece_html = ""
-
-            style_orient_p = (
-                "writing-mode: vertical-rl; transform: rotate(180deg);"
-                " white-space: nowrap;"
-                if is_long
-                else ""
-            )
-
+            # Rectangle de la pièce de titre
             html_str += (
-                '<div style="position: absolute; top: '
+                '<rect x="0" y="'
                 + str(top_p_px)
-                + "px; width: 100%; height: "
+                + '" width="'
+                + str(largeur_visuelle_px)
+                + '" height="'
                 + str(haut_p_px)
-                + "px; background-color: "
+                + '" fill="'
                 + bg_piece_html
-                + "; border: 1.5px dashed #fff; display: flex; align-items:"
-                " center; justify-content: center; text-align: center;"
-                ' overflow: hidden;">'
+                + '" stroke="#ffffff" stroke-dasharray="3,3" />'
             )
-            html_str += (
-                '<div style="color: '
-                + txt_piece_html
-                + "; font-size: 11px; font-weight: bold; text-transform:"
-                " uppercase; line-height: 1.2; padding: 0 2px; "
-                + style_orient_p
-                + '">'
-                + texte_piece_html
-                + "</div>"
-            )
-            html_str += "</div>"
+
+            if txt_p and txt_p != "None":
+              centre_x = largeur_visuelle_px / 2
+              centre_y = top_p_px + (haut_p_px / 2)
+
+              if is_long:
+                # Titrage couché (rotation 90°)
+                html_str += (
+                    '<text x="'
+                    + str(centre_x)
+                    + '" y="'
+                    + str(centre_y)
+                    + '" fill="'
+                    + txt_piece_html
+                    + '" font-size="12" font-weight="bold" font-family="sans-serif"'
+                    ' text-anchor="middle" dominant-baseline="central"'
+                    ' transform="rotate(-90 '
+                    + str(centre_x)
+                    + " "
+                    + str(centre_y)
+                    + ')">'
+                    + txt_p.replace("\n", " ")
+                    + "</text>"
+                )
+              else:
+                lignes_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
+                start_y = centre_y - ((len(lignes_p) - 1) * 7)
+                for i_l, lp in enumerate(lignes_p):
+                  curr_y = start_y + (i_l * 14)
+                  html_str += (
+                      '<text x="'
+                      + str(centre_x)
+                      + '" y="'
+                      + str(curr_y)
+                      + '" fill="'
+                      + txt_piece_html
+                      + '" font-size="11" font-weight="bold"'
+                      ' font-family="sans-serif" text-anchor="middle"'
+                      ' dominant-baseline="central">'
+                      + lp
+                      + "</text>"
+                  )
 
       # 2. Lignes directes sur le dos
       for _, row_data in df_edite_lignes.iterrows():
@@ -691,57 +716,43 @@ else:
         txt = str(row_data["Titrage"]).strip()
 
         if pd.notna(mm_pos) and txt and txt != "None" and txt != "":
-          taille_estimee_texte_px = len(txt) * 8.5
-
-          if not is_long and taille_estimee_texte_px > (
-              largeur_visuelle_px - 6
-          ):
-            coloration_ligne = "#d9534f"
-            fond_alerte = (
-                "background-color: rgba(217, 83, 79, 0.2); border: 1px dashed"
-                " #d9534f;"
-            )
-          else:
-            coloration_ligne = couleur_texte_html
-            fond_alerte = ""
-
           bottom_offset = float(mm_pos) * px_par_mm
-          top_offset_px = hauteur_visuelle_px - bottom_offset - 10
+          y_pos = hauteur_visuelle_px - bottom_offset
+          x_pos = largeur_visuelle_px / 2
 
           if is_long:
-            # Rendu vertical de bas en haut (écriture couchée) :
-            # writing-mode: vertical-rl + transform: rotate(180deg) sur un inline-block centré
+            # En SVG, transform="rotate(-90 x y)" fait pivoter la ligne à -90° sur son propre centre
             html_str += (
-                '<div style="position: absolute; top: '
-                + str(top_offset_px)
-                + "px; left: 0; width: 100%; display: flex; justify-content:"
-                ' center; align-items: center;">'
-            )
-            html_str += (
-                '<span style="color: '
-                + coloration_ligne
-                + "; font-size: 13px; font-weight: bold; "
-                + fond_alerte
-                + " text-transform: uppercase; writing-mode: vertical-rl;"
-                " transform: rotate(180deg); display: inline-block; white-space:"
-                ' nowrap;">'
+                '<text x="'
+                + str(x_pos)
+                + '" y="'
+                + str(y_pos)
+                + '" fill="'
+                + couleur_texte_html
+                + '" font-size="13" font-weight="bold"'
+                ' font-family="sans-serif" text-anchor="middle"'
+                ' dominant-baseline="central" transform="rotate(-90 '
+                + str(x_pos)
+                + " "
+                + str(y_pos)
+                + ')">'
                 + txt
-                + "</span>"
+                + "</text>"
             )
-            html_str += "</div>"
           else:
             html_str += (
-                '<div style="position: absolute; top: '
-                + str(top_offset_px)
-                + "px; left: 0; width: 100%; text-align: center; color: "
-                + coloration_ligne
-                + "; font-size: 13px; font-weight: bold; "
-                + fond_alerte
-                + " text-transform: uppercase; white-space: nowrap; overflow:"
-                ' visible;">'
+                '<text x="'
+                + str(x_pos)
+                + '" y="'
+                + str(y_pos)
+                + '" fill="'
+                + couleur_texte_html
+                + '" font-size="13" font-weight="bold"'
+                ' font-family="sans-serif" text-anchor="middle"'
+                ' dominant-baseline="central">'
+                + txt
+                + "</text>"
             )
-            html_str += "<span>" + txt + "</span>"
-            html_str += "</div>"
 
-      html_str += "</div></div>"
+      html_str += "</svg></div></div>"
       st.components.v1.html(html_str, height=hauteur_visuelle_px + 80)

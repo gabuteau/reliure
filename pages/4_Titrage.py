@@ -481,14 +481,33 @@ def generer_image_gabarit(
               align="center",
           )
 
-  # 5. Griffe du client (Marquage fixe en bas de dos)
+  # 5. Griffe du client avec retour à la ligne automatique (Auto-wrap)
   if griffe_texte:
     x_center = x_dos + (w_dos_px / 2)
+
+    # Nombre approx. de caractères par ligne selon la largeur utile du dos
+    chars_max_par_ligne = max(int((w_dos_px - 8) / 7), 1)
+
+    # Découpage dynamique des mots
+    mots = griffe_texte.replace("\n", " ").split()
+    lignes_g = []
+    ligne_courante = []
+
+    for mot in mots:
+      test_ligne = " ".join(ligne_courante + [mot])
+      if len(test_ligne) <= chars_max_par_ligne:
+        ligne_courante.append(mot)
+      else:
+        if ligne_courante:
+          lignes_g.append(" ".join(ligne_courante).upper())
+        ligne_courante = [mot]
+    if ligne_courante:
+      lignes_g.append(" ".join(ligne_courante).upper())
+
+    txt_g_full = "\n".join(lignes_g)
     y_griffe_px = y_dos + h_dos_px - (griffe_pos_mm * px_par_mm)
 
-    lignes_g = [l.strip().upper() for l in griffe_texte.split("\n") if l.strip()]
-    txt_g_full = "\n".join(lignes_g)
-
+    # Contrôle de sécurité au cas où un mot unique est plus large que le dos
     bbox_g = draw.textbbox(
         (0, 0), txt_g_full, font=font_griffe, align="center"
     )

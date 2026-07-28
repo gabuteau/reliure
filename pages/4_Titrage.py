@@ -595,7 +595,7 @@ else:
           f'<div style="position: relative; width: {largeur_visuelle_px}px;'
           f" height: {hauteur_visuelle_px}px; background-color:"
           f" {couleur_fond_html}; border: 2px solid #111; margin-left: 20px;"
-          " box-shadow: inset 0 0 10px rgba(0,0,0,0.3); overflow: hidden;"
+          " box-shadow: inset 0 0 10px rgba(0,0,0,0.3); overflow: hidden;'
           ' transition: all 0.2s ease;">'
       )
 
@@ -628,9 +628,8 @@ else:
             else:
               texte_piece_html = ""
 
-            css_orient_piece = (
-                "writing-mode: vertical-rl; transform: rotate(180deg);"
-                " transform-origin: center center;"
+            style_piece_txt = (
+                "writing-mode: vertical-lr; text-orientation: sideways;"
                 if is_long
                 else ""
             )
@@ -647,7 +646,7 @@ else:
             html_gabarit += (
                 f'<div style="color: {txt_piece_html}; font-size: 11px;'
                 " font-weight: bold; text-transform: uppercase; line-height:"
-                f' 1.2; padding: 0 2px; {css_orient_piece}">{texte_piece_html}</div>'
+                f' 1.2; padding: 0 2px; {style_piece_txt}">{texte_piece_html}</div>'
             )
             html_gabarit += "</div>"
 
@@ -675,17 +674,16 @@ else:
           top_offset_px = hauteur_visuelle_px - bottom_offset - 10
 
           if is_long:
-            # Structuration spécifique pour bloquer la rotation verticale sur le centre de l'élément
+            # En écriture Long (verticale de haut en bas), on passe la hauteur en auto et on force vertical-lr
             style_conteneur = (
                 f"position: absolute; top: {top_offset_px}px; left: 0; width:"
                 " 100%; display: flex; justify-content: center;"
-                " align-items: center; pointer-events: none;"
             )
             style_texte = (
                 f"color: {coloration_ligne}; font-size: 13px; font-weight:"
                 f" bold; {fond_alerte} text-transform: uppercase; writing-mode:"
-                " vertical-rl; transform: rotate(180deg); transform-origin:"
-                " center center; white-space: nowrap; pointer-events: auto;"
+                " vertical-lr; text-orientation: sideways; white-space:"
+                " nowrap;"
             )
             html_gabarit += (
                 f'<div style="{style_conteneur}"><span'

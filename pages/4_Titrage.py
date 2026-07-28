@@ -1,40 +1,4 @@
-import json
-from datetime import datetime
-import pandas as pd
-import streamlit as st
-from supabase import create_client
-
-
-def obtenir_client_supabase():
-  return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-
-
-def lister_tous_les_clients():
-  supabase = obtenir_client_supabase()
-  try:
-    reponse = supabase.table("clients").select("nom").order("nom").execute()
-    return [row["nom"] for row in reponse.data]
-  except Exception:
-    return []
-
-
-def lister_les_trains_du_client(client):
-  supabase = obtenir_client_supabase()
-  reponse = (
-      supabase.table("fiches_livres")
-      .select("numero_train")
-      .eq("nom_client", client)
-      .execute()
-  )
-  return sorted(
-      list(set([row["numero_train"] for row in reponse.data])), reverse=True
-  )
-
-
-def lister_les_livres_du_train(client, train):
-  supabase = obtenir_client_supabase()
-  reponse = (
-      supabase.table("fiches_livres")
+◊      supabase.table("fiches_livres")
       .select("numero_livre")
       .eq("nom_client", client)
       .eq("numero_train", train)

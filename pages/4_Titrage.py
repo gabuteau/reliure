@@ -682,9 +682,9 @@ else:
 
           html_gabarit += (
               f'<div style="position: absolute; top: {top_offset_px}px; width:'
-              " 100%; text-align: center; color: {coloration_ligne};"
-              " font-size: 13px; font-weight: bold; {fond_alerte}"
-              " text-transform: uppercase; white-space: nowrap; overflow:"
+              f' 100%; text-align: center; color: {coloration_ligne};'
+              f' font-size: 13px; font-weight: bold; {fond_alerte}'
+              ' text-transform: uppercase; white-space: nowrap; overflow:'
               f' visible;" title="Position: {mm_pos}mm">'
           )
           html_gabarit += f'<span style="{css_span}">{txt}</span>'

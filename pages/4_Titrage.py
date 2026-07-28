@@ -359,13 +359,31 @@ def generer_image_gabarit(
                 if txt_p and txt_p != "None":
                     lines_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
                     txt_p_full = " ".join(lines_p).upper()
-                    draw.text(
-                        (x_dos + (w_dos_px / 2), y_p_px + (h_p_px / 2)),
-                        txt_p_full,
-                        fill=txt_p_hex,
-                        font=font,
-                        anchor="mm",
-                    )
+
+                    if is_long:
+                        pas_px = 15
+                        y_start = y_p_px + 10
+                        x_center = x_dos + (w_dos_px / 2)
+                        for idx, char in enumerate(txt_p_full):
+                            if char != " ":
+                                y_char = y_start + (idx * pas_px)
+                                if y_char < (y_p_px + h_p_px - 5):
+                                    draw.text(
+                                        (x_center, y_char),
+                                        char,
+                                        fill=txt_p_hex,
+                                        font=font,
+                                        anchor="mm",
+                                    )
+                    else:
+                        y_curr = y_p_px + (h_p_px / 2)
+                        draw.text(
+                            (x_dos + (w_dos_px / 2), y_curr),
+                            txt_p_full,
+                            fill=txt_p_hex,
+                            font=font,
+                            anchor="mm",
+                        )
 
     # 4. Lignes directes sur le dos
     if df_lignes is not None and not df_lignes.empty:
@@ -374,19 +392,32 @@ def generer_image_gabarit(
             txt = str(row_l["Titrage"]).strip().upper()
 
             if pd.notna(mm_pos) and txt and txt != "None":
-                y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
                 x_center = x_dos + (w_dos_px / 2)
-                draw.text(
-                    (x_center, y_l_px),
-                    txt,
-                    fill=c_marq_hex,
-                    font=font,
-                    anchor="mm",
-                )
 
-    # Si le sens du titrage est Long : on pivote l'ensemble du gabarit (règle + dos + titres) à 90°
-    if is_long:
-        img = img.rotate(90, expand=True)
+                if is_long:
+                    y_depart_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
+                    pas_lettre_px = 14
+
+                    for idx, char in enumerate(txt):
+                        if char != " ":
+                            y_lettre = y_depart_px + (idx * pas_lettre_px)
+                            if y_lettre <= (y_dos + h_dos_px - 5):
+                                draw.text(
+                                    (x_center, y_lettre),
+                                    char,
+                                    fill=c_marq_hex,
+                                    font=font,
+                                    anchor="mm",
+                                )
+                else:
+                    y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
+                    draw.text(
+                        (x_center, y_l_px),
+                        txt,
+                        fill=c_marq_hex,
+                        font=font,
+                        anchor="mm",
+                    )
 
     return img
 
@@ -520,7 +551,7 @@ else:
                     "Sens du titrage",
                     ["Classique", "Long"],
                     index=idx_s,
-                    help="Classique = vertical | Long = gabarit complet couché à l'horizontale",
+                    help="Classique = horizontal | Long = lettres empilées de haut en bas",
                 )
 
             st.write("---")

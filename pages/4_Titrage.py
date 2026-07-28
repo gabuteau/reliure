@@ -401,7 +401,7 @@ else:
             "Sens du titrage",
             ["Classique", "Long"],
             index=idx_s,
-            help="Classique = de gauche à droite | Long = de haut en bas",
+            help="Classique = horizontal (gauche à droite) | Long = vertical (haut en bas)",
         )
 
       st.write("---")
@@ -571,8 +571,10 @@ else:
         paliers_mm.append(int(t3_haut_maquette))
 
       is_long = t3_sens_titrage == "Long"
-      css_orient = (
-          "writing-mode: vertical-rl; transform: rotate(90deg);"
+      # CSS optimisé pour une orientation verticale de HAUT en BAS
+      css_orient_texte = (
+          "writing-mode: vertical-rl; transform: rotate(180deg); display:"
+          " inline-block;"
           if is_long
           else ""
       )
@@ -646,7 +648,7 @@ else:
             html_gabarit += (
                 f'<div style="color: {txt_piece_html}; font-size: 11px;'
                 " font-weight: bold; text-transform: uppercase; line-height:"
-                f' 1.2; padding: 0 2px; {css_orient}">{texte_piece_html}</div>'
+                f' 1.2; padding: 0 2px; {css_orient_texte}">{texte_piece_html}</div>'
             )
             html_gabarit += "</div>"
 
@@ -673,13 +675,6 @@ else:
           bottom_offset = float(mm_pos) * px_par_mm
           top_offset_px = hauteur_visuelle_px - bottom_offset - 8
 
-          css_span = (
-              "writing-mode: vertical-rl; transform: rotate(90deg); display:"
-              " inline-block;"
-              if is_long
-              else ""
-          )
-
           html_gabarit += (
               f'<div style="position: absolute; top: {top_offset_px}px; width:'
               f' 100%; text-align: center; color: {coloration_ligne};'
@@ -687,7 +682,7 @@ else:
               ' text-transform: uppercase; white-space: nowrap; overflow:'
               f' visible;" title="Position: {mm_pos}mm">'
           )
-          html_gabarit += f'<span style="{css_span}">{txt}</span>'
+          html_gabarit += f'<span style="{css_orient_texte}">{txt}</span>'
           html_gabarit += "</div>"
 
       html_gabarit += "</div></div>"

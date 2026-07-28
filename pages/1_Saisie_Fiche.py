@@ -247,7 +247,16 @@ else:
             
             if not sans_titrage:
                 c_tit1, c_tit2, c_tit3, c_tit4 = st.columns(4)
-                with c_tit1: titrage_sens = st.radio("Sens", ["Long", "Classique"], horizontal=True, index=0 if donnees_edition and donnees_edition["titrage_sens"] == "Long" else (1 if donnees_edition and donnees_edition["titrage_sens"] in ["Classique", "Travers"] else 0))
+                with c_tit1: 
+                    # Sens du titrage : "Classique" par défaut (index 1) lors d'un nouveau livre
+                    idx_sens_defaut = 1
+                    if donnees_edition and "titrage_sens" in donnees_edition:
+                        if donnees_edition["titrage_sens"] == "Long":
+                            idx_sens_defaut = 0
+                        elif donnees_edition["titrage_sens"] in ["Classique", "Travers"]:
+                            idx_sens_defaut = 1
+
+                    titrage_sens = st.radio("Sens", ["Long", "Classique"], horizontal=True, index=idx_sens_defaut)
                 with c_tit2: lignes_sup = st.number_input("Lignes sup", min_value=0, value=int(donnees_edition["lignes_sup"]) if donnees_edition else 0, step=1)
                 list_marq = ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
                 with c_tit3: titrage_couleur = st.selectbox("Marquage", list_marq, index=list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0)

@@ -536,6 +536,18 @@ liste_clients_existants = lister_tous_les_clients()
 if not liste_clients_existants:
     st.warning("⚠️ Créez d'abord un client pour utiliser le module de titrage.")
 else:
+    # --- INITIALISATION PAR DÉFAUT POUR ÉVITER LES NAMEERROR ---
+    t3_haut_maquette = 225
+    t3_larg_dos_utile = 30
+    t3_couleur_nom = "Noir"
+    t3_marquage_nom = "OR"
+    t3_sens_titrage = "Classique"
+    has_pieces = False
+    df_pieces_edite = None
+    df_edite_lignes = None
+    griffe_a_afficher = ""
+    griffe_hauteur_mm = 15
+
     col_form_saisie, col_gabarit_visualisation = st.columns([1.2, 0.8])
 
     with col_form_saisie:
@@ -665,7 +677,6 @@ else:
 
             # --- GESTION DE LA GRIFFE CLIENT ---
             griffe_registree, griffe_pos_defaut = recuperer_griffe_client(t3_client)
-            griffe_a_afficher = ""
             griffe_hauteur_mm = griffe_pos_defaut
 
             if griffe_registree:
@@ -699,7 +710,6 @@ else:
                 t3_client, t3_train_sel, t3_livre_num
             )
 
-            df_pieces_edite = None
             if has_pieces:
                 if df_pieces_existant is not None and not df_pieces_existant.empty:
                     df_pieces_initial = df_pieces_existant
@@ -854,26 +864,26 @@ else:
                         + ")"
                     )
 
-    # --- RENDU VISUEL VIA GENERATION D'IMAGE (PILLOW) ---
-    with col_gabarit_visualisation:
-        st.subheader("📐 Gabarit dynamique du dos à dorer")
+        # --- RENDU VISUEL VIA GENERATION D'IMAGE (PILLOW) ---
+        with col_gabarit_visualisation:
+            st.subheader("📐 Gabarit dynamique du dos à dorer")
 
-        hex_toile = HEX_COULEURS_TOILE.get(t3_couleur_nom, "#1a1a1a")
-        hex_marq = HEX_COULEURS_MARQUAGE.get(t3_marquage_nom, "#ffd700")
+            hex_toile = HEX_COULEURS_TOILE.get(t3_couleur_nom, "#1a1a1a")
+            hex_marq = HEX_COULEURS_MARQUAGE.get(t3_marquage_nom, "#ffd700")
 
-        img_gabarit = generer_image_gabarit(
-            t3_haut_maquette,
-            t3_larg_dos_utile,
-            hex_toile,
-            hex_marq,
-            t3_sens_titrage == "Long",
-            has_pieces,
-            df_pieces_edite,
-            df_edite_lignes,
-            griffe_texte=griffe_a_afficher,
-            griffe_pos_mm=griffe_hauteur_mm,
-        )
+            img_gabarit = generer_image_gabarit(
+                t3_haut_maquette,
+                t3_larg_dos_utile,
+                hex_toile,
+                hex_marq,
+                t3_sens_titrage == "Long",
+                has_pieces,
+                df_pieces_edite,
+                df_edite_lignes,
+                griffe_texte=griffe_a_afficher,
+                griffe_pos_mm=griffe_hauteur_mm,
+            )
 
-        buf = io.BytesIO()
-        img_gabarit.save(buf, format="PNG")
-        st.image(buf.getvalue(), use_container_width=False)
+            buf = io.BytesIO()
+            img_gabarit.save(buf, format="PNG")
+            st.image(buf.getvalue(), use_container_width=False)

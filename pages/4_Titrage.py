@@ -357,25 +357,33 @@ def generer_image_gabarit(
                 )
 
                 if txt_p and txt_p != "None":
-                    lines_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
-                    txt_p_full = " ".join(lines_p).upper()
+                    lignes_p = [l.strip().upper() for l in txt_p.split("\n") if l.strip()]
 
                     if is_long:
-                        pas_px = 15
-                        y_start = y_p_px + 10
-                        x_center = x_dos + (w_dos_px / 2)
-                        for idx, char in enumerate(txt_p_full):
-                            if char != " ":
-                                y_char = y_start + (idx * pas_px)
-                                if y_char < (y_p_px + h_p_px - 5):
-                                    draw.text(
-                                        (x_center, y_char),
-                                        char,
-                                        fill=txt_p_hex,
-                                        font=font,
-                                        anchor="mm",
-                                    )
+                        pas_px = 14
+                        ecart_col_px = 16
+                        nb_cols = len(lignes_p)
+                        x_base_center = x_dos + (w_dos_px / 2)
+
+                        for idx_col, ligne in enumerate(lignes_p):
+                            # Centrage horizontal des colonnes
+                            offset_col = (idx_col - (nb_cols - 1) / 2) * ecart_col_px
+                            x_col = x_base_center + offset_col
+                            y_start = y_p_px + 10
+
+                            for idx_char, char in enumerate(ligne):
+                                if char != " ":
+                                    y_char = y_start + (idx_char * pas_px)
+                                    if y_char < (y_p_px + h_p_px - 5):
+                                        draw.text(
+                                            (x_col, y_char),
+                                            char,
+                                            fill=txt_p_hex,
+                                            font=font,
+                                            anchor="mm",
+                                        )
                     else:
+                        txt_p_full = "\n".join(lignes_p)
                         y_curr = y_p_px + (h_p_px / 2)
                         draw.text(
                             (x_dos + (w_dos_px / 2), y_curr),
@@ -383,40 +391,51 @@ def generer_image_gabarit(
                             fill=txt_p_hex,
                             font=font,
                             anchor="mm",
+                            align="center",
                         )
 
     # 4. Lignes directes sur le dos
     if df_lignes is not None and not df_lignes.empty:
         for _, row_l in df_lignes.iterrows():
             mm_pos = row_l["Hauteur du titre (mm)"]
-            txt = str(row_l["Titrage"]).strip().upper()
+            txt = str(row_l["Titrage"]).strip()
 
             if pd.notna(mm_pos) and txt and txt != "None":
                 x_center = x_dos + (w_dos_px / 2)
+                lignes_txt = [l.strip().upper() for l in txt.split("\n") if l.strip()]
 
                 if is_long:
                     y_depart_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
                     pas_lettre_px = 14
+                    ecart_col_px = 16
+                    nb_cols = len(lignes_txt)
 
-                    for idx, char in enumerate(txt):
-                        if char != " ":
-                            y_lettre = y_depart_px + (idx * pas_lettre_px)
-                            if y_lettre <= (y_dos + h_dos_px - 5):
-                                draw.text(
-                                    (x_center, y_lettre),
-                                    char,
-                                    fill=c_marq_hex,
-                                    font=font,
-                                    anchor="mm",
-                                )
+                    for idx_col, ligne in enumerate(lignes_txt):
+                        # Décalage horizontal s'il y a plusieurs sous-lignes séparées par \n
+                        offset_col = (idx_col - (nb_cols - 1) / 2) * ecart_col_px
+                        x_col = x_center + offset_col
+
+                        for idx_char, char in enumerate(ligne):
+                            if char != " ":
+                                y_lettre = y_depart_px + (idx_char * pas_lettre_px)
+                                if y_lettre <= (y_dos + h_dos_px - 5):
+                                    draw.text(
+                                        (x_col, y_lettre),
+                                        char,
+                                        fill=c_marq_hex,
+                                        font=font,
+                                        anchor="mm",
+                                    )
                 else:
                     y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
+                    txt_full = "\n".join(lignes_txt)
                     draw.text(
                         (x_center, y_l_px),
-                        txt,
+                        txt_full,
                         fill=c_marq_hex,
                         font=font,
                         anchor="mm",
+                        align="center",
                     )
 
     return img

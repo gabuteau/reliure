@@ -158,7 +158,7 @@ def recuperer_specs_livre(client, train, num_livre):
             "Classique",
         )
     except Exception as e:
-      st.warning(f"Chargement des valeurs par défaut : {e}")
+      st.warning("Chargement des valeurs par défaut: " + str(e))
 
   return 220, 160, 20, "Buckram", "Noir", "OR", False, "Rouge", "OR", 1, "Classique"
 
@@ -248,7 +248,7 @@ def sauvegarder_titrage_sur_base(
     )
     return True
   except Exception as e:
-    st.error(f"Erreur technique lors de l'enregistrement : {e}")
+    st.error("Erreur technique lors de l'enregistrement : " + str(e))
     return False
 
 
@@ -439,6 +439,14 @@ else:
         ]
         list_marquages_gen = ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
 
+        editor_key_p = (
+            "editor_pieces_"
+            + str(t3_client)
+            + "_"
+            + str(t3_train_sel)
+            + "_"
+            + str(t3_livre_num)
+        )
         df_pieces_edite = st.data_editor(
             df_pieces_initial,
             column_config={
@@ -468,7 +476,7 @@ else:
             },
             num_rows="dynamic",
             use_container_width=True,
-            key=f"editor_pieces_{t3_client}_{t3_train_sel}_{t3_livre_num}",
+            key=editor_key_p,
         )
 
       st.write("---")
@@ -484,6 +492,14 @@ else:
             "Titrage": "COTE",
         }])
 
+      editor_key_l = (
+          "editor_lignes_"
+          + str(t3_client)
+          + "_"
+          + str(t3_train_sel)
+          + "_"
+          + str(t3_livre_num)
+      )
       df_edite_lignes = st.data_editor(
           df_lignes_initial,
           column_config={
@@ -500,7 +516,7 @@ else:
           },
           num_rows="dynamic",
           use_container_width=True,
-          key=f"editor_lignes_{t3_client}_{t3_train_sel}_{t3_livre_num}",
+          key=editor_key_l,
       )
 
       st.write("---")
@@ -546,8 +562,11 @@ else:
             specs_mises_a_jour,
         ):
           st.success(
-              "✅ Fiche & Composition enregistrées (Livre"
-              f" N°{t3_livre_num} — Train {t3_train_sel})"
+              "✅ Fiche & Composition enregistrées (Livre N°"
+              + str(t3_livre_num)
+              + " — Train "
+              + str(t3_train_sel)
+              + ")"
           )
 
     # --- RENDU VISUEL DYNAMIQUE ---
@@ -571,40 +590,19 @@ else:
 
       is_long = t3_sens_titrage == "Long"
 
-      html_gabarit = (
-          '<div style="display: flex; font-family: monospace;'
-          " background-color: #f8f9fa; padding: 20px; border-radius: 5px;"
-          f' min-height: {hauteur_visuelle_px + 60}px;">'
-      )
-      html_gabarit += (
-          f'<div style="position: relative; height: {hauteur_visuelle_px}px;'
-          " width: 60px; border-right: 2px solid #ccc; text-align: right;"
-          ' padding-right: 8px;">'
-      )
+      html_str = '<div style="display: flex; font-family: monospace; background-color: #f8f9fa; padding: 20px; border-radius: 5px; min-height: ' + str(hauteur_visuelle_px + 60) + 'px;">'
+      html_str += '<div style="position: relative; height: ' + str(hauteur_visuelle_px) + 'px; width: 60px; border-right: 2px solid #ccc; text-align: right; padding-right: 8px;">'
 
       for mm in paliers_mm:
         pos_depuis_bas = mm * px_par_mm
         correction_top = hauteur_visuelle_px - pos_depuis_bas - 6
-        html_gabarit += (
-            f'<div style="position: absolute; top: {correction_top}px; right:'
-            f' 8px; font-size: 11px; color: #555;">{mm} mm —</div>'
-        )
+        html_str += '<div style="position: absolute; top: ' + str(correction_top) + 'px; right: 8px; font-size: 11px; color: #555;">' + str(mm) + ' mm —</div>'
 
-      html_gabarit += "</div>"
-      html_gabarit += (
-          f'<div style="position: relative; width: {largeur_visuelle_px}px;'
-          f" height: {hauteur_visuelle_px}px; background-color:"
-          f" {couleur_fond_html}; border: 2px solid #111; margin-left: 20px;"
-          " box-shadow: inset 0 0 10px rgba(0,0,0,0.3); overflow: hidden;'
-          ' transition: all 0.2s ease;">'
-      )
+      html_str += '</div>'
+      html_str += '<div style="position: relative; width: ' + str(largeur_visuelle_px) + 'px; height: ' + str(hauteur_visuelle_px) + 'px; background-color: ' + couleur_fond_html + '; border: 2px solid #111; margin-left: 20px; box-shadow: inset 0 0 10px rgba(0,0,0,0.3); overflow: hidden;">'
 
       # 1. Pièces de titre
-      if (
-          has_pieces
-          and df_pieces_edite is not None
-          and not df_pieces_edite.empty
-      ):
+      if has_pieces and df_pieces_edite is not None and not df_pieces_edite.empty:
         for _, row_p in df_pieces_edite.iterrows():
           pos_p_mm = row_p["Position (mm depuis le bas)"]
           haut_p_mm = row_p["Hauteur pièce (mm)"]
@@ -622,33 +620,15 @@ else:
 
             if txt_p and txt_p != "None":
               lignes_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
-              texte_piece_html = "<br>".join(
-                  [f"<span>{l}</span>" for l in lignes_p]
-              )
+              texte_piece_html = "<br>".join(['<span>' + str(l) + '</span>' for l in lignes_p])
             else:
               texte_piece_html = ""
 
-            style_piece_txt = (
-                "writing-mode: vertical-lr; text-orientation: sideways;"
-                if is_long
-                else ""
-            )
+            css_orient_p = "writing-mode: vertical-rl; text-orientation: mixed;" if is_long else ""
 
-            html_gabarit += (
-                f'<div style="position: absolute; top: {top_p_px}px; width:'
-                f" 100%; height: {haut_p_px}px; background-color:"
-                f" {bg_piece_html}; border: 1.5px dashed #fff; box-shadow: 0 0"
-                " 4px rgba(0,0,0,0.5); display: flex; align-items: center;"
-                ' justify-content: center; text-align: center; overflow:'
-                f' hidden;" title="Pièce de titre ({c_p_nom}) -'
-                f' H:{haut_p_mm}mm">'
-            )
-            html_gabarit += (
-                f'<div style="color: {txt_piece_html}; font-size: 11px;'
-                " font-weight: bold; text-transform: uppercase; line-height:"
-                f' 1.2; padding: 0 2px; {style_piece_txt}">{texte_piece_html}</div>'
-            )
-            html_gabarit += "</div>"
+            html_str += '<div style="position: absolute; top: ' + str(top_p_px) + 'px; width: 100%; height: ' + str(haut_p_px) + 'px; background-color: ' + bg_piece_html + '; border: 1.5px dashed #fff; display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden;">'
+            html_str += '<div style="color: ' + txt_piece_html + '; font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.2; padding: 0 2px; ' + css_orient_p + '">' + texte_piece_html + '</div>'
+            html_str += '</div>'
 
       # 2. Lignes directes sur le dos
       for _, row_data in df_edite_lignes.iterrows():
@@ -658,14 +638,9 @@ else:
         if pd.notna(mm_pos) and txt and txt != "None" and txt != "":
           taille_estimee_texte_px = len(txt) * 8.5
 
-          if not is_long and taille_estimee_texte_px > (
-              largeur_visuelle_px - 6
-          ):
+          if not is_long and taille_estimee_texte_px > (largeur_visuelle_px - 6):
             coloration_ligne = "#d9534f"
-            fond_alerte = (
-                "background-color: rgba(217, 83, 79, 0.2); border: 1px dashed"
-                " #d9534f;"
-            )
+            fond_alerte = "background-color: rgba(217, 83, 79, 0.2); border: 1px dashed #d9534f;"
           else:
             coloration_ligne = couleur_texte_html
             fond_alerte = ""
@@ -674,32 +649,14 @@ else:
           top_offset_px = hauteur_visuelle_px - bottom_offset - 10
 
           if is_long:
-            # En écriture Long (verticale de haut en bas), on passe la hauteur en auto et on force vertical-lr
-            style_conteneur = (
-                f"position: absolute; top: {top_offset_px}px; left: 0; width:"
-                " 100%; display: flex; justify-content: center;"
-            )
-            style_texte = (
-                f"color: {coloration_ligne}; font-size: 13px; font-weight:"
-                f" bold; {fond_alerte} text-transform: uppercase; writing-mode:"
-                " vertical-lr; text-orientation: sideways; white-space:"
-                " nowrap;"
-            )
-            html_gabarit += (
-                f'<div style="{style_conteneur}"><span'
-                f' style="{style_texte}">{txt}</span></div>'
-            )
+            # Écriture verticale de haut en bas (norme de reliure) : vertical-rl + text-orientation: mixed
+            html_str += '<div style="position: absolute; top: ' + str(top_offset_px) + 'px; left: 0; width: 100%; display: flex; justify-content: center; align-items: center;">'
+            html_str += '<span style="color: ' + coloration_ligne + '; font-size: 13px; font-weight: bold; ' + fond_alerte + ' text-transform: uppercase; writing-mode: vertical-rl; text-orientation: mixed; white-space: nowrap; display: inline-block;">' + txt + '</span>'
+            html_str += '</div>'
           else:
-            style_conteneur = (
-                f"position: absolute; top: {top_offset_px}px; left: 0; width:"
-                f" 100%; text-align: center; color: {coloration_ligne};"
-                " font-size: 13px; font-weight: bold; {fond_alerte}"
-                " text-transform: uppercase; white-space: nowrap; overflow:"
-                " visible;"
-            )
-            html_gabarit += (
-                f'<div style="{style_conteneur}"><span>{txt}</span></div>'
-            )
+            html_str += '<div style="position: absolute; top: ' + str(top_offset_px) + 'px; left: 0; width: 100%; text-align: center; color: ' + coloration_ligne + '; font-size: 13px; font-weight: bold; ' + fond_alerte + ' text-transform: uppercase; white-space: nowrap; overflow: visible;">'
+            html_str += '<span>' + txt + '</span>'
+            html_str += '</div>'
 
-      html_gabarit += "</div></div>"
-      st.components.v1.html(html_gabarit, height=hauteur_visuelle_px + 80)
+      html_str += '</div></div>'
+      st.components.v1.html(html_str, height=hauteur_visuelle_px + 80)

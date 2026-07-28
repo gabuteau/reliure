@@ -1,40 +1,144 @@
-import io
-import json
-from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont
-import pandas as pd
-import streamlit as st
-from supabase import create_client
+def generer_image_gabarit(
+    haut_maquette,
+    larg_dos,
+    c_toile_hex,
+    c_marq_hex,
+    is_long,
+    has_pieces,
+    df_pieces,
+    df_lignes,
+):
+  facteur_px = 2.5
+  h_dos_px = max(min(int(haut_maquette * facteur_px), 600), 350)
+  w_dos_px = max(min(int(larg_dos * facteur_px), 250), 60)
 
+  w_regle_px = 80
+  w_totale = w_regle_px + w_dos_px + 30
+  h_totale = h_dos_px + 40
 
-def obtenir_client_supabase():
-  return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+  img = Image.new("RGBA", (w_totale, h_totale), (248, 249, 250, 255))
+  draw = ImageDraw.Draw(img)
 
-
-def lister_tous_les_clients():
-  supabase = obtenir_client_supabase()
   try:
-    reponse = supabase.table("clients").select("nom").order("nom").execute()
-    return [row["nom"] for row in reponse.data]
+    font = ImageFont.truetype("DejaVuSans-Bold.ttf", 12)
+    font_small = ImageFont.truetype("DejaVuSans.ttf", 10)
   except Exception:
-    return []
+    font = ImageFont.load_default()
+    font_small = ImageFont.load_default()
 
+  px_par_mm = h_dos_px / haut_maquette
 
-def lister_les_trains_du_client(client):
-  supabase = obtenir_client_supabase()
-  reponse = (
-      supabase.table("fiches_livres")
-      .select("numero_train")
-      .eq("nom_client", client)
-      .execute()
-  )
-  return sorted(
-      list(set([row["numero_train"] for row in reponse.data])), reverse=True
+  # 1. Règle graduée
+  draw.line(
+      [(w_regle_px, 20), (w_regle_px, 20 + h_dos_px)], fill="#cccccc", width=2
   )
 
+  paliers_mm = list(range(0, int(haut_maquette) + 1, 10))
+  if paliers_mm[-1] != int(haut_maquette):
+    paliers_mm.append(int(haut_maquette))
 
-def lister_les_livres_du_train(client, train):
-  supabase = obtenir_client_supabase()
+  for mm in paliers_mm:
+    y_mm = 20 + h_dos_px - (mm * px_par_mm)
+    draw.line(
+        [(w_regle_px - 6, y_mm), (w_regle_px, y_mm)], fill="#555555", width=1
+    )
+    txt_mm = str(mm) + " mm"
+    draw.text(
+        (w_regle_px - 50, y_mm - 6), txt_mm, fill="#555555", font=font_small
+    )
+
+  # 2. Dos du livre
+  x_dos = w_regle_px + 15
+  y_dos = 20
+  draw.rectangle(
+      [(x_dos, y_dos), (x_dos + w_dos_px, y_dos + h_dos_px)],
+      fill=c_toile_hex,
+      outline="#111111",
+      width=2,
+  )
+
+  # 3. Pièces de titre
+  if has_pieces and df_pieces is not None and not df_pieces.empty:
+    for _, row_p in df_pieces.iterrows():
+      pos_p_mm = row_p["Position (mm depuis le bas)"]
+      haut_p_mm = row_p["Hauteur pièce (mm)"]
+      c_p_nom = row_p["Couleur pièce"]
+      m_p_nom = row_p["Couleur marquage"]
+      txt_p = str(row_p.get("Titre sur pièce", "")).strip()
+
+      if pd.notna(pos_p_mm) and pd.notna(haut_p_mm):
+        bg_p_hex = HEX_COULEURS_TOILE.get(c_p_nom, "#8b0000")
+        txt_p_hex = HEX_COULEURS_MARQUAGE.get(m_p_nom, "#ffd700")
+
+        h_p_px = haut_p_mm * px_par_mm
+        y_p_px = y_dos + h_dos_px - (pos_p_mm * px_par_mm) - h_p_px
+
+        draw.rectangle(
+            [(x_dos, y_p_px), (x_dos + w_dos_px, y_p_px + h_p_px)],
+            fill=bg_p_hex,
+            outline="#ffffff",
+            width=1,
+        )
+
+        if txt_p and txt_p != "None":
+          lines_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
+          txt_p_full = " ".join(lines_p).upper()
+
+          if is_long:
+            # Rotation à 270° (de bas en haut)
+            txt_img = Image.new(
+                "RGBA", (int(h_p_px), int(w_dos_px)), (0, 0, 0, 0)
+            )
+            d_txt = ImageDraw.Draw(txt_img)
+            d_txt.text(
+                (int(h_p_px / 2), int(w_dos_px / 2)),
+                txt_p_full,
+                fill=txt_p_hex,
+                font=font,
+                anchor="mm",
+            )
+            rot_img = txt_img.rotate(270, expand=True)
+            img.paste(rot_img, (int(x_dos), int(y_p_px)), rot_img)
+          else:
+            y_curr = y_p_px + (h_p_px / 2)
+            draw.text(
+                (x_dos + (w_dos_px / 2), y_curr),
+                txt_p_full,
+                fill=txt_p_hex,
+                font=font,
+                anchor="mm",
+            )
+
+  # 4. Lignes directes sur le dos
+  if df_lignes is not None and not df_lignes.empty:
+    for _, row_l in df_lignes.iterrows():
+      mm_pos = row_l["Hauteur du titre (mm)"]
+      txt = str(row_l["Titrage"]).strip().upper()
+
+      if pd.notna(mm_pos) and txt and txt != "None":
+        y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
+        x_center = x_dos + (w_dos_px / 2)
+
+        if is_long:
+          # Rotation de 270° pour orienter le texte de BAS en HAUT
+          txt_img = Image.new("RGBA", (300, 30), (0, 0, 0, 0))
+          d_txt = ImageDraw.Draw(txt_img)
+          d_txt.text((150, 15), txt, fill=c_marq_hex, font=font, anchor="mm")
+
+          rot_img = txt_img.rotate(270, expand=True)
+          pos_x = int(x_center - (rot_img.width / 2))
+          pos_y = int(y_l_px - (rot_img.height / 2))
+          img.paste(rot_img, (pos_x, pos_y), rot_img)
+        else:
+          draw.text(
+              (x_center, y_l_px),
+              txt,
+              fill=c_marq_hex,
+              font=font,
+              anchor="mm",
+          )
+
+  return img  supabase = obtenir_client_supabase()
   reponse = (
       supabase.table("fiches_livres")
       .select("numero_livre")

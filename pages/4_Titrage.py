@@ -366,29 +366,39 @@ def generer_image_gabarit(
                         x_base_center = x_dos + (w_dos_px / 2)
 
                         for idx_col, ligne in enumerate(lignes_p):
-                            # Centrage horizontal des colonnes
                             offset_col = (idx_col - (nb_cols - 1) / 2) * ecart_col_px
                             x_col = x_base_center + offset_col
                             y_start = y_p_px + 10
 
+                            # Contrôle débordement de la pièce
+                            hauteur_totale_texte = len(ligne) * pas_px
+                            couleur_piece_finale = (
+                                "#d9534f" if (y_start + hauteur_totale_texte) > (y_p_px + h_p_px) else txt_p_hex
+                            )
+
                             for idx_char, char in enumerate(ligne):
                                 if char != " ":
                                     y_char = y_start + (idx_char * pas_px)
-                                    if y_char < (y_p_px + h_p_px - 5):
-                                        draw.text(
-                                            (x_col, y_char),
-                                            char,
-                                            fill=txt_p_hex,
-                                            font=font,
-                                            anchor="mm",
-                                        )
+                                    draw.text(
+                                        (x_col, y_char),
+                                        char,
+                                        fill=couleur_piece_finale,
+                                        font=font,
+                                        anchor="mm",
+                                    )
                     else:
                         txt_p_full = "\n".join(lignes_p)
+
+                        # Contrôle débordement en largeur
+                        bbox_p = draw.textbbox((0, 0), txt_p_full, font=font, align="center")
+                        w_txt_p = bbox_p[2] - bbox_p[0]
+                        couleur_piece_finale = "#d9534f" if w_txt_p > (w_dos_px - 4) else txt_p_hex
+
                         y_curr = y_p_px + (h_p_px / 2)
                         draw.text(
                             (x_dos + (w_dos_px / 2), y_curr),
                             txt_p_full,
-                            fill=txt_p_hex,
+                            fill=couleur_piece_finale,
                             font=font,
                             anchor="mm",
                             align="center",
@@ -411,28 +421,38 @@ def generer_image_gabarit(
                     nb_cols = len(lignes_txt)
 
                     for idx_col, ligne in enumerate(lignes_txt):
-                        # Décalage horizontal s'il y a plusieurs sous-lignes séparées par \n
                         offset_col = (idx_col - (nb_cols - 1) / 2) * ecart_col_px
                         x_col = x_center + offset_col
+
+                        # Détection du débordement vers le bas du dos (y_dos + h_dos_px)
+                        y_fin_texte = y_depart_px + (len(ligne) * pas_lettre_px)
+                        is_debordement = (y_fin_texte > (y_dos + h_dos_px - 2)) or (y_depart_px < y_dos)
+                        couleur_ligne = "#d9534f" if is_debordement else c_marq_hex
 
                         for idx_char, char in enumerate(ligne):
                             if char != " ":
                                 y_lettre = y_depart_px + (idx_char * pas_lettre_px)
-                                if y_lettre <= (y_dos + h_dos_px - 5):
-                                    draw.text(
-                                        (x_col, y_lettre),
-                                        char,
-                                        fill=c_marq_hex,
-                                        font=font,
-                                        anchor="mm",
-                                    )
+                                draw.text(
+                                    (x_col, y_lettre),
+                                    char,
+                                    fill=couleur_ligne,
+                                    font=font,
+                                    anchor="mm",
+                                )
                 else:
                     y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
                     txt_full = "\n".join(lignes_txt)
+
+                    # Détection du débordement en largeur du dos (w_dos_px)
+                    bbox_txt = draw.textbbox((0, 0), txt_full, font=font, align="center")
+                    w_txt = bbox_txt[2] - bbox_txt[0]
+                    is_debordement = w_txt > (w_dos_px - 4)
+                    couleur_ligne = "#d9534f" if is_debordement else c_marq_hex
+
                     draw.text(
                         (x_center, y_l_px),
                         txt_full,
-                        fill=c_marq_hex,
+                        fill=couleur_ligne,
                         font=font,
                         anchor="mm",
                         align="center",

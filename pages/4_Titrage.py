@@ -95,7 +95,6 @@ def charger_couleurs_par_toile_supabase(type_toile):
 
 
 def recuperer_specs_livre(client, train, num_livre):
-  """Récupère les caractéristiques du livre avec secours si sens_titrage manque"""
   supabase = obtenir_client_supabase()
   num_livre_int = int(num_livre)
 
@@ -401,7 +400,7 @@ else:
             "Sens du titrage",
             ["Classique", "Long"],
             index=idx_s,
-            help="Classique = horizontal (gauche à droite) | Long = vertical (haut en bas)",
+            help="Classique = horizontal | Long = vertical (haut en bas)",
         )
 
       st.write("---")
@@ -571,13 +570,6 @@ else:
         paliers_mm.append(int(t3_haut_maquette))
 
       is_long = t3_sens_titrage == "Long"
-      # CSS optimisé pour une orientation verticale de HAUT en BAS
-      css_orient_texte = (
-          "writing-mode: vertical-rl; transform: rotate(180deg); display:"
-          " inline-block;"
-          if is_long
-          else ""
-      )
 
       html_gabarit = (
           '<div style="display: flex; font-family: monospace;'
@@ -636,6 +628,12 @@ else:
             else:
               texte_piece_html = ""
 
+            css_orient_piece = (
+                "writing-mode: vertical-rl; transform: rotate(180deg);"
+                if is_long
+                else ""
+            )
+
             html_gabarit += (
                 f'<div style="position: absolute; top: {top_p_px}px; width:'
                 f" 100%; height: {haut_p_px}px; background-color:"
@@ -648,7 +646,7 @@ else:
             html_gabarit += (
                 f'<div style="color: {txt_piece_html}; font-size: 11px;'
                 " font-weight: bold; text-transform: uppercase; line-height:"
-                f' 1.2; padding: 0 2px; {css_orient_texte}">{texte_piece_html}</div>'
+                f' 1.2; padding: 0 2px; {css_orient_piece}">{texte_piece_html}</div>'
             )
             html_gabarit += "</div>"
 
@@ -673,17 +671,32 @@ else:
             fond_alerte = ""
 
           bottom_offset = float(mm_pos) * px_par_mm
-          top_offset_px = hauteur_visuelle_px - bottom_offset - 8
+          top_offset_px = hauteur_visuelle_px - bottom_offset - 12
 
-          html_gabarit += (
-              f'<div style="position: absolute; top: {top_offset_px}px; width:'
-              f' 100%; text-align: center; color: {coloration_ligne};'
-              f' font-size: 13px; font-weight: bold; {fond_alerte}'
-              ' text-transform: uppercase; white-space: nowrap; overflow:'
-              f' visible;" title="Position: {mm_pos}mm">'
-          )
-          html_gabarit += f'<span style="{css_orient_texte}">{txt}</span>'
-          html_gabarit += "</div>"
+          if is_long:
+            style_conteneur = (
+                f"position: absolute; top: {top_offset_px}px; width: 100%;"
+                " display: flex; justify-content: center; align-items: center;"
+            )
+            style_texte = (
+                f"color: {coloration_ligne}; font-size: 13px; font-weight:"
+                f" bold; {fond_alerte} text-transform: uppercase; writing-mode:"
+                " vertical-rl; transform: rotate(180deg); white-space: nowrap;"
+            )
+            html_gabarit += (
+                f'<div style="{style_conteneur}"><span'
+                f' style="{style_texte}">{txt}</span></div>'
+            )
+          else:
+            style_conteneur = (
+                f"position: absolute; top: {top_offset_px}px; width: 100%;"
+                f" text-align: center; color: {coloration_ligne}; font-size:"
+                f" 13px; font-weight: bold; {fond_alerte} text-transform:"
+                " uppercase; white-space: nowrap; overflow: visible;"
+            )
+            html_gabarit += (
+                f'<div style="{style_conteneur}"><span>{txt}</span></div>'
+            )
 
       html_gabarit += "</div></div>"
       st.components.v1.html(html_gabarit, height=hauteur_visuelle_px + 80)

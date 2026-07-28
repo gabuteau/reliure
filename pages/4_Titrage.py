@@ -288,8 +288,11 @@ def generer_image_gabarit(
     img = Image.new("RGBA", (w_totale, h_totale), (248, 249, 250, 255))
     draw = ImageDraw.Draw(img)
 
+    # Doublement du corps de la police si le mode Double est actif
+    facteur_taille = 2 if police_style == "Double" else 1
+
     try:
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 13)
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 13 * facteur_taille)
         font_small = ImageFont.truetype("DejaVuSans.ttf", 10)
         font_griffe = ImageFont.truetype("DejaVuSans-Bold.ttf", 11)
     except Exception:
@@ -298,12 +301,6 @@ def generer_image_gabarit(
         font_griffe = ImageFont.load_default()
 
     px_par_mm = h_dos_px / haut_maquette
-
-    def tracer_texte(pt, txt, fill_color, fnt, anc="mm", alg="center"):
-        draw.text(pt, txt, fill=fill_color, font=fnt, anchor=anc, align=alg)
-        if police_style == "Double":
-            x, y = pt
-            draw.text((x + 1, y), txt, fill=fill_color, font=fnt, anchor=anc, align=alg)
 
     # 1. Règle graduée
     draw.line(
@@ -361,8 +358,8 @@ def generer_image_gabarit(
                     lignes_p = [l.strip().upper() for l in txt_p.split("\n") if l.strip()]
 
                     if is_long:
-                        pas_px = 14
-                        ecart_col_px = 16
+                        pas_px = 14 * facteur_taille
+                        ecart_col_px = 16 * facteur_taille
                         nb_cols = len(lignes_p)
                         x_base_center = x_dos + (w_dos_px / 2)
 
@@ -381,7 +378,7 @@ def generer_image_gabarit(
                             for idx_char, char in enumerate(ligne):
                                 if char != " ":
                                     y_char = y_start + (idx_char * pas_px)
-                                    tracer_texte((x_col, y_char), char, couleur_piece_finale, font, "mm", "center")
+                                    draw.text((x_col, y_char), char, fill=couleur_piece_finale, font=font, anchor="mm", align="center")
                     else:
                         txt_p_full = "\n".join(lignes_p)
                         bbox_p = draw.textbbox((0, 0), txt_p_full, font=font, align="center")
@@ -391,7 +388,7 @@ def generer_image_gabarit(
                         )
 
                         y_curr = y_p_px + (h_p_px / 2)
-                        tracer_texte((x_dos + (w_dos_px / 2), y_curr), txt_p_full, couleur_piece_finale, font, "mm", "center")
+                        draw.text((x_dos + (w_dos_px / 2), y_curr), txt_p_full, fill=couleur_piece_finale, font=font, anchor="mm", align="center")
 
     # 4. Lignes directes sur le dos
     if df_lignes is not None and not df_lignes.empty:
@@ -405,8 +402,8 @@ def generer_image_gabarit(
 
                 if is_long:
                     y_depart_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
-                    pas_lettre_px = 14
-                    ecart_col_px = 16
+                    pas_lettre_px = 14 * facteur_taille
+                    ecart_col_px = 16 * facteur_taille
                     nb_cols = len(lignes_txt)
 
                     for idx_col, ligne in enumerate(lignes_txt):
@@ -422,7 +419,7 @@ def generer_image_gabarit(
                         for idx_char, char in enumerate(ligne):
                             if char != " ":
                                 y_lettre = y_depart_px + (idx_char * pas_lettre_px)
-                                tracer_texte((x_col, y_lettre), char, couleur_ligne, font, "mm", "center")
+                                draw.text((x_col, y_lettre), char, fill=couleur_ligne, font=font, anchor="mm", align="center")
                 else:
                     y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
                     txt_full = "\n".join(lignes_txt)
@@ -432,7 +429,7 @@ def generer_image_gabarit(
                     is_debordement = w_txt > (w_dos_px - 4)
                     couleur_ligne = "#d9534f" if is_debordement else c_marq_hex
 
-                    tracer_texte((x_center, y_l_px), txt_full, couleur_ligne, font, "mm", "center")
+                    draw.text((x_center, y_l_px), txt_full, fill=couleur_ligne, font=font, anchor="mm", align="center")
 
     # 5. Griffe du client avec alignement sur la ligne du bas
     if griffe_texte:
@@ -466,7 +463,7 @@ def generer_image_gabarit(
             w_g = bbox_g[2] - bbox_g[0]
             c_griffe = "#d9534f" if w_g > (w_dos_px - 4) else c_marq_hex
 
-            tracer_texte((x_center, y_ligne_px), txt_ligne, c_griffe, font_griffe, "mm", "center")
+            draw.text((x_center, y_ligne_px), txt_ligne, fill=c_griffe, font=font_griffe, anchor="mm", align="center")
 
     return img
 

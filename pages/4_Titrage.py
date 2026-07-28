@@ -656,7 +656,7 @@ else:
               texte_piece_html = ""
 
             style_orient_p = (
-                "transform: rotate(-90deg); transform-origin: center center;"
+                "writing-mode: vertical-rl; transform: rotate(180deg);"
                 " white-space: nowrap;"
                 if is_long
                 else ""
@@ -709,22 +709,22 @@ else:
           top_offset_px = hauteur_visuelle_px - bottom_offset - 10
 
           if is_long:
-            # Titrage couché de bas en haut : rotation de -90° centrée au milieu du dos
+            # Rendu vertical de bas en haut (écriture couchée) :
+            # writing-mode: vertical-rl + transform: rotate(180deg) sur un inline-block centré
             html_str += (
                 '<div style="position: absolute; top: '
                 + str(top_offset_px)
-                + "px; left: 0; width: 100%; height: 20px; display: flex;"
-                " justify-content: center; align-items: center;"
-                ' pointer-events: none;">'
+                + "px; left: 0; width: 100%; display: flex; justify-content:"
+                ' center; align-items: center;">'
             )
             html_str += (
                 '<span style="color: '
                 + coloration_ligne
                 + "; font-size: 13px; font-weight: bold; "
                 + fond_alerte
-                + " text-transform: uppercase; transform: rotate(-90deg);"
-                " transform-origin: center center; white-space: nowrap;"
-                ' display: inline-block; pointer-events: auto;">'
+                + " text-transform: uppercase; writing-mode: vertical-rl;"
+                " transform: rotate(180deg); display: inline-block; white-space:"
+                ' nowrap;">'
                 + txt
                 + "</span>"
             )

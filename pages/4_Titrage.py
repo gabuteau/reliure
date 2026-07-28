@@ -595,8 +595,8 @@ else:
           f'<div style="position: relative; width: {largeur_visuelle_px}px;'
           f" height: {hauteur_visuelle_px}px; background-color:"
           f" {couleur_fond_html}; border: 2px solid #111; margin-left: 20px;"
-          " box-shadow: inset 0 0 10px rgba(0,0,0,0.3); transition: all 0.2s"
-          ' ease;">'
+          " box-shadow: inset 0 0 10px rgba(0,0,0,0.3); overflow: hidden;"
+          ' transition: all 0.2s ease;">'
       )
 
       # 1. Pièces de titre
@@ -630,6 +630,7 @@ else:
 
             css_orient_piece = (
                 "writing-mode: vertical-rl; transform: rotate(180deg);"
+                " transform-origin: center center;"
                 if is_long
                 else ""
             )
@@ -671,17 +672,20 @@ else:
             fond_alerte = ""
 
           bottom_offset = float(mm_pos) * px_par_mm
-          top_offset_px = hauteur_visuelle_px - bottom_offset - 12
+          top_offset_px = hauteur_visuelle_px - bottom_offset - 10
 
           if is_long:
+            # Structuration spécifique pour bloquer la rotation verticale sur le centre de l'élément
             style_conteneur = (
-                f"position: absolute; top: {top_offset_px}px; width: 100%;"
-                " display: flex; justify-content: center; align-items: center;"
+                f"position: absolute; top: {top_offset_px}px; left: 0; width:"
+                " 100%; display: flex; justify-content: center;"
+                " align-items: center; pointer-events: none;"
             )
             style_texte = (
                 f"color: {coloration_ligne}; font-size: 13px; font-weight:"
                 f" bold; {fond_alerte} text-transform: uppercase; writing-mode:"
-                " vertical-rl; transform: rotate(180deg); white-space: nowrap;"
+                " vertical-rl; transform: rotate(180deg); transform-origin:"
+                " center center; white-space: nowrap; pointer-events: auto;"
             )
             html_gabarit += (
                 f'<div style="{style_conteneur}"><span'
@@ -689,10 +693,11 @@ else:
             )
           else:
             style_conteneur = (
-                f"position: absolute; top: {top_offset_px}px; width: 100%;"
-                f" text-align: center; color: {coloration_ligne}; font-size:"
-                f" 13px; font-weight: bold; {fond_alerte} text-transform:"
-                " uppercase; white-space: nowrap; overflow: visible;"
+                f"position: absolute; top: {top_offset_px}px; left: 0; width:"
+                f" 100%; text-align: center; color: {coloration_ligne};"
+                " font-size: 13px; font-weight: bold; {fond_alerte}"
+                " text-transform: uppercase; white-space: nowrap; overflow:"
+                " visible;"
             )
             html_gabarit += (
                 f'<div style="{style_conteneur}"><span>{txt}</span></div>'

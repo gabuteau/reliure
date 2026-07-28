@@ -1,5 +1,7 @@
+import io
 import json
 from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
 import pandas as pd
 import streamlit as st
 from supabase import create_client
@@ -271,6 +273,146 @@ HEX_COULEURS_MARQUAGE = {
     "AUTRE": "#c0c0c0",
 }
 
+
+def generer_image_gabarit(
+    haut_maquette,
+    larg_dos,
+    c_toile_hex,
+    c_marq_hex,
+    is_long,
+    has_pieces,
+    df_pieces,
+    df_lignes,
+):
+  facteur_px = 2.5
+  h_dos_px = max(min(int(haut_maquette * facteur_px), 600), 350)
+  w_dos_px = max(min(int(larg_dos * facteur_px), 250), 60)
+
+  w_regle_px = 80
+  w_totale = w_regle_px + w_dos_px + 30
+  h_totale = h_dos_px + 40
+
+  img = Image.new("RGBA", (w_totale, h_totale), (248, 249, 250, 255))
+  draw = ImageDraw.Draw(img)
+
+  try:
+    font = ImageFont.truetype("DejaVuSans-Bold.ttf", 12)
+    font_small = ImageFont.truetype("DejaVuSans.ttf", 10)
+  except Exception:
+    font = ImageFont.load_default()
+    font_small = ImageFont.load_default()
+
+  px_par_mm = h_dos_px / haut_maquette
+
+  # 1. Règle graduée
+  draw.line(
+      [(w_regle_px, 20), (w_regle_px, 20 + h_dos_px)], fill="#cccccc", width=2
+  )
+
+  paliers_mm = list(range(0, int(haut_maquette) + 1, 10))
+  if paliers_mm[-1] != int(haut_maquette):
+    paliers_mm.append(int(haut_maquette))
+
+  for mm in paliers_mm:
+    y_mm = 20 + h_dos_px - (mm * px_par_mm)
+    draw.line([(w_regle_px - 6, y_mm), (w_regle_px, y_mm)], fill="#555555", width=1)
+    txt_mm = str(mm) + " mm"
+    draw.text((w_regle_px - 50, y_mm - 6), txt_mm, fill="#555555", font=font_small)
+
+  # 2. Dos du livre
+  x_dos = w_regle_px + 15
+  y_dos = 20
+  draw.rectangle(
+      [(x_dos, y_dos), (x_dos + w_dos_px, y_dos + h_dos_px)],
+      fill=c_toile_hex,
+      outline="#111111",
+      width=2,
+  )
+
+  # 3. Pièces de titre
+  if has_pieces and df_pieces is not None and not df_pieces.empty:
+    for _, row_p in df_pieces.iterrows():
+      pos_p_mm = row_p["Position (mm depuis le bas)"]
+      haut_p_mm = row_p["Hauteur pièce (mm)"]
+      c_p_nom = row_p["Couleur pièce"]
+      m_p_nom = row_p["Couleur marquage"]
+      txt_p = str(row_p.get("Titre sur pièce", "")).strip()
+
+      if pd.notna(pos_p_mm) and pd.notna(haut_p_mm):
+        bg_p_hex = HEX_COULEURS_TOILE.get(c_p_nom, "#8b0000")
+        txt_p_hex = HEX_COULEURS_MARQUAGE.get(m_p_nom, "#ffd700")
+
+        h_p_px = haut_p_mm * px_par_mm
+        y_p_px = y_dos + h_dos_px - (pos_p_mm * px_par_mm) - h_p_px
+
+        draw.rectangle(
+            [(x_dos, y_p_px), (x_dos + w_dos_px, y_p_px + h_p_px)],
+            fill=bg_p_hex,
+            outline="#ffffff",
+            width=1,
+        )
+
+        if txt_p and txt_p != "None":
+          lines_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
+          txt_p_full = " ".join(lines_p).upper()
+
+          if is_long:
+            # Création du texte pivoté en image
+            txt_img = Image.new(
+                "RGBA", (int(h_p_px), int(w_dos_px)), (0, 0, 0, 0)
+            )
+            d_txt = ImageDraw.Draw(txt_img)
+            d_txt.text(
+                (int(h_p_px / 2), int(w_dos_px / 2)),
+                txt_p_full,
+                fill=txt_p_hex,
+                font=font,
+                anchor="mm",
+            )
+            rot_img = txt_img.rotate(90, expand=True)
+            img.paste(rot_img, (int(x_dos), int(y_p_px)), rot_img)
+          else:
+            y_curr = y_p_px + (h_p_px / 2)
+            draw.text(
+                (x_dos + (w_dos_px / 2), y_curr),
+                txt_p_full,
+                fill=txt_p_hex,
+                font=font,
+                anchor="mm",
+            )
+
+  # 4. Lignes directes sur le dos
+  if df_lignes is not None and not df_lignes.empty:
+    for _, row_l in df_lignes.iterrows():
+      mm_pos = row_l["Hauteur du titre (mm)"]
+      txt = str(row_l["Titrage"]).strip().upper()
+
+      if pd.notna(mm_pos) and txt and txt != "None":
+        y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
+        x_center = x_dos + (w_dos_px / 2)
+
+        if is_long:
+          # Écriture couchée le long du dos (rotation 90° physique de l'image du texte)
+          txt_img = Image.new("RGBA", (300, 30), (0, 0, 0, 0))
+          d_txt = ImageDraw.Draw(txt_img)
+          d_txt.text((150, 15), txt, fill=c_marq_hex, font=font, anchor="mm")
+
+          rot_img = txt_img.rotate(90, expand=True)
+          pos_x = int(x_center - (rot_img.width / 2))
+          pos_y = int(y_l_px - (rot_img.height / 2))
+          img.paste(rot_img, (pos_x, pos_y), rot_img)
+        else:
+          draw.text(
+              (x_center, y_l_px),
+              txt,
+              fill=c_marq_hex,
+              font=font,
+              anchor="mm",
+          )
+
+  return img
+
+
 st.set_page_config(page_title="Titrage Système 3", layout="wide")
 st.title("📟 Module de Composition Spécifique — Titrage Système 3")
 
@@ -400,7 +542,7 @@ else:
             "Sens du titrage",
             ["Classique", "Long"],
             index=idx_s,
-            help="Classique = horizontal | Long = titrage couché le long du dos",
+            help="Classique = horizontal | Long = texte couché le long du dos",
         )
 
       st.write("---")
@@ -569,190 +711,24 @@ else:
               + ")"
           )
 
-    # --- RENDU VISUEL DYNAMIQUE VECTORIEL (SVG) ---
+    # --- RENDU VISUEL VIA GENERATION D'IMAGE (PILLOW) ---
     with col_gabarit_visualisation:
       st.subheader("📐 Gabarit dynamique du dos à dorer")
 
-      couleur_fond_html = HEX_COULEURS_TOILE.get(t3_couleur_nom, "#1a1a1a")
-      couleur_texte_html = HEX_COULEURS_MARQUAGE.get(t3_marquage_nom, "#ffd700")
+      hex_toile = HEX_COULEURS_TOILE.get(t3_couleur_nom, "#1a1a1a")
+      hex_marq = HEX_COULEURS_MARQUAGE.get(t3_marquage_nom, "#ffd700")
 
-      facteur_px = 2.5
-      hauteur_visuelle_px = max(min(int(t3_haut_maquette * facteur_px), 600), 350)
-      largeur_visuelle_px = max(
-          min(int(t3_larg_dos_utile * facteur_px), 250), 60
+      img_gabarit = generer_image_gabarit(
+          t3_haut_maquette,
+          t3_larg_dos_utile,
+          hex_toile,
+          hex_marq,
+          t3_sens_titrage == "Long",
+          has_pieces,
+          df_pieces_edite,
+          df_edite_lignes,
       )
 
-      px_par_mm = hauteur_visuelle_px / t3_haut_maquette
-
-      paliers_mm = list(range(0, int(t3_haut_maquette) + 1, 10))
-      if paliers_mm[-1] != int(t3_haut_maquette):
-        paliers_mm.append(int(t3_haut_maquette))
-
-      is_long = t3_sens_titrage == "Long"
-
-      html_str = (
-          '<div style="display: flex; font-family: monospace; background-color:'
-          " #f8f9fa; padding: 20px; border-radius: 5px; min-height: "
-          + str(hauteur_visuelle_px + 60)
-          + 'px;">'
-      )
-
-      # Règle graduée à gauche
-      html_str += (
-          '<div style="position: relative; height: '
-          + str(hauteur_visuelle_px)
-          + "px; width: 60px; border-right: 2px solid #ccc; text-align: right;"
-          ' padding-right: 8px;">'
-      )
-      for mm in paliers_mm:
-        pos_depuis_bas = mm * px_par_mm
-        correction_top = hauteur_visuelle_px - pos_depuis_bas - 6
-        html_str += (
-            '<div style="position: absolute; top: '
-            + str(correction_top)
-            + 'px; right: 8px; font-size: 11px; color: #555;">'
-            + str(mm)
-            + " mm —</div>"
-        )
-      html_str += "</div>"
-
-      # Conteneur SVG du Dos du Livre
-      html_str += (
-          '<div style="margin-left: 20px; width: '
-          + str(largeur_visuelle_px)
-          + "px; height: "
-          + str(hauteur_visuelle_px)
-          + 'px;">'
-      )
-      html_str += (
-          '<svg width="'
-          + str(largeur_visuelle_px)
-          + '" height="'
-          + str(hauteur_visuelle_px)
-          + '" style="background-color: '
-          + couleur_fond_html
-          + '; border: 2px solid #111; border-radius: 2px;">'
-      )
-
-      # 1. Pièces de titre
-      if (
-          has_pieces
-          and df_pieces_edite is not None
-          and not df_pieces_edite.empty
-      ):
-        for _, row_p in df_pieces_edite.iterrows():
-          pos_p_mm = row_p["Position (mm depuis le bas)"]
-          haut_p_mm = row_p["Hauteur pièce (mm)"]
-          c_p_nom = row_p["Couleur pièce"]
-          m_p_nom = row_p["Couleur marquage"]
-          txt_p = str(row_p.get("Titre sur pièce", "")).strip()
-
-          if pd.notna(pos_p_mm) and pd.notna(haut_p_mm):
-            bg_piece_html = HEX_COULEURS_TOILE.get(c_p_nom, "#8b0000")
-            txt_piece_html = HEX_COULEURS_MARQUAGE.get(m_p_nom, "#ffd700")
-
-            haut_p_px = haut_p_mm * px_par_mm
-            bottom_p_px = pos_p_mm * px_par_mm
-            top_p_px = hauteur_visuelle_px - bottom_p_px - haut_p_px
-
-            # Rectangle de la pièce de titre
-            html_str += (
-                '<rect x="0" y="'
-                + str(top_p_px)
-                + '" width="'
-                + str(largeur_visuelle_px)
-                + '" height="'
-                + str(haut_p_px)
-                + '" fill="'
-                + bg_piece_html
-                + '" stroke="#ffffff" stroke-dasharray="3,3" />'
-            )
-
-            if txt_p and txt_p != "None":
-              centre_x = largeur_visuelle_px / 2
-              centre_y = top_p_px + (haut_p_px / 2)
-
-              if is_long:
-                # Titrage couché (rotation 90°)
-                html_str += (
-                    '<text x="'
-                    + str(centre_x)
-                    + '" y="'
-                    + str(centre_y)
-                    + '" fill="'
-                    + txt_piece_html
-                    + '" font-size="12" font-weight="bold" font-family="sans-serif"'
-                    ' text-anchor="middle" dominant-baseline="central"'
-                    ' transform="rotate(-90 '
-                    + str(centre_x)
-                    + " "
-                    + str(centre_y)
-                    + ')">'
-                    + txt_p.replace("\n", " ")
-                    + "</text>"
-                )
-              else:
-                lignes_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
-                start_y = centre_y - ((len(lignes_p) - 1) * 7)
-                for i_l, lp in enumerate(lignes_p):
-                  curr_y = start_y + (i_l * 14)
-                  html_str += (
-                      '<text x="'
-                      + str(centre_x)
-                      + '" y="'
-                      + str(curr_y)
-                      + '" fill="'
-                      + txt_piece_html
-                      + '" font-size="11" font-weight="bold"'
-                      ' font-family="sans-serif" text-anchor="middle"'
-                      ' dominant-baseline="central">'
-                      + lp
-                      + "</text>"
-                  )
-
-      # 2. Lignes directes sur le dos
-      for _, row_data in df_edite_lignes.iterrows():
-        mm_pos = row_data["Hauteur du titre (mm)"]
-        txt = str(row_data["Titrage"]).strip()
-
-        if pd.notna(mm_pos) and txt and txt != "None" and txt != "":
-          bottom_offset = float(mm_pos) * px_par_mm
-          y_pos = hauteur_visuelle_px - bottom_offset
-          x_pos = largeur_visuelle_px / 2
-
-          if is_long:
-            # En SVG, transform="rotate(-90 x y)" fait pivoter la ligne à -90° sur son propre centre
-            html_str += (
-                '<text x="'
-                + str(x_pos)
-                + '" y="'
-                + str(y_pos)
-                + '" fill="'
-                + couleur_texte_html
-                + '" font-size="13" font-weight="bold"'
-                ' font-family="sans-serif" text-anchor="middle"'
-                ' dominant-baseline="central" transform="rotate(-90 '
-                + str(x_pos)
-                + " "
-                + str(y_pos)
-                + ')">'
-                + txt
-                + "</text>"
-            )
-          else:
-            html_str += (
-                '<text x="'
-                + str(x_pos)
-                + '" y="'
-                + str(y_pos)
-                + '" fill="'
-                + couleur_texte_html
-                + '" font-size="13" font-weight="bold"'
-                ' font-family="sans-serif" text-anchor="middle"'
-                ' dominant-baseline="central">'
-                + txt
-                + "</text>"
-            )
-
-      html_str += "</svg></div></div>"
-      st.components.v1.html(html_str, height=hauteur_visuelle_px + 80)
+      buf = io.BytesIO()
+      img_gabarit.save(buf, format="PNG")
+      st.image(buf.getvalue(), use_column_width=False)

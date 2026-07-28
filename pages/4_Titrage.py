@@ -1,4 +1,40 @@
-◊      supabase.table("fiches_livres")
+import json
+from datetime import datetime
+import pandas as pd
+import streamlit as st
+from supabase import create_client
+
+
+def obtenir_client_supabase():
+  return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
+
+def lister_tous_les_clients():
+  supabase = obtenir_client_supabase()
+  try:
+    reponse = supabase.table("clients").select("nom").order("nom").execute()
+    return [row["nom"] for row in reponse.data]
+  except Exception:
+    return []
+
+
+def lister_les_trains_du_client(client):
+  supabase = obtenir_client_supabase()
+  reponse = (
+      supabase.table("fiches_livres")
+      .select("numero_train")
+      .eq("nom_client", client)
+      .execute()
+  )
+  return sorted(
+      list(set([row["numero_train"] for row in reponse.data])), reverse=True
+  )
+
+
+def lister_les_livres_du_train(client, train):
+  supabase = obtenir_client_supabase()
+  reponse = (
+      supabase.table("fiches_livres")
       .select("numero_livre")
       .eq("nom_client", client)
       .eq("numero_train", train)
@@ -59,10 +95,11 @@ def charger_couleurs_par_toile_supabase(type_toile):
 
 
 def recuperer_specs_livre(client, train, num_livre):
-  """Récupère les caractéristiques du livre"""
+  """Récupère les caractéristiques du livre avec secours si sens_titrage manque"""
   supabase = obtenir_client_supabase()
+  num_livre_int = int(num_livre)
+
   try:
-    num_livre_int = int(num_livre)
     reponse = (
         supabase.table("fiches_livres")
         .select(
@@ -91,8 +128,38 @@ def recuperer_specs_livre(client, train, num_livre):
           r.get("nombre_pieces_titre") or 1,
           r.get("sens_titrage") or "Classique",
       )
-  except Exception as e:
-    st.warning(f"Chargement des valeurs par défaut : {e}")
+  except Exception:
+    try:
+      reponse = (
+          supabase.table("fiches_livres")
+          .select(
+              "largeur, hauteur, epaisseur, type_toile, couleur,"
+              " titrage_couleur, cocher_piece_titre, couleur_pieces_toile,"
+              " marquage_pieces, nombre_pieces_titre"
+          )
+          .eq("nom_client", str(client).strip())
+          .eq("numero_train", str(train).strip())
+          .eq("numero_livre", num_livre_int)
+          .execute()
+      )
+
+      if reponse.data:
+        r = reponse.data[0]
+        return (
+            r.get("hauteur") or 220,
+            r.get("largeur") or 160,
+            r.get("epaisseur") or 20,
+            r.get("type_toile") or "Buckram",
+            r.get("couleur") or "Noir",
+            r.get("titrage_couleur") or "OR",
+            bool(r.get("cocher_piece_titre", False)),
+            r.get("couleur_pieces_toile") or "Rouge",
+            r.get("marquage_pieces") or "OR",
+            r.get("nombre_pieces_titre") or 1,
+            "Classique",
+        )
+    except Exception as e:
+      st.warning(f"Chargement des valeurs par défaut : {e}")
 
   return 220, 160, 20, "Buckram", "Noir", "OR", False, "Rouge", "OR", 1, "Classique"
 
@@ -294,46 +361,46 @@ else:
         )
 
       with c_dim4:
+        idx_m = (
+            ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"].index(init_marquage)
+            if init_marquage in ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
+            else 0
+        )
         t3_marquage_nom = st.selectbox(
             "Marquage général",
             ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"],
-            index=(
-                ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"].index(init_marquage)
-                if init_marquage in ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
-                else 0
-            ),
+            index=idx_m,
         )
 
       c_toi1, c_toi2, c_toi3 = st.columns(3)
       types_toiles_dispos = charger_types_toile_supabase()
       with c_toi1:
+        idx_t = (
+            types_toiles_dispos.index(init_type_toile)
+            if init_type_toile in types_toiles_dispos
+            else 0
+        )
         t3_type_toile = st.selectbox(
-            "Type de toile",
-            types_toiles_dispos,
-            index=(
-                types_toiles_dispos.index(init_type_toile)
-                if init_type_toile in types_toiles_dispos
-                else 0
-            ),
+            "Type de toile", types_toiles_dispos, index=idx_t
         )
 
       couleurs_toile_dispos = charger_couleurs_par_toile_supabase(t3_type_toile)
       with c_toi2:
+        idx_c = (
+            couleurs_toile_dispos.index(init_couleur_toile)
+            if init_couleur_toile in couleurs_toile_dispos
+            else 0
+        )
         t3_couleur_nom = st.selectbox(
-            "Couleur de la toile",
-            couleurs_toile_dispos,
-            index=(
-                couleurs_toile_dispos.index(init_couleur_toile)
-                if init_couleur_toile in couleurs_toile_dispos
-                else 0
-            ),
+            "Couleur de la toile", couleurs_toile_dispos, index=idx_c
         )
 
       with c_toi3:
+        idx_s = 1 if init_sens_titrage == "Long" else 0
         t3_sens_titrage = st.selectbox(
             "Sens du titrage",
             ["Classique", "Long"],
-            index=1 if init_sens_titrage == "Long" else 0,
+            index=idx_s,
             help="Classique = de gauche à droite | Long = de haut en bas",
         )
 
@@ -443,6 +510,17 @@ else:
           type="primary",
           use_container_width=True,
       ):
+        c_piece = (
+            df_pieces_edite.iloc[0]["Couleur pièce"]
+            if (df_pieces_edite is not None and not df_pieces_edite.empty)
+            else init_piece_couleur
+        )
+        m_piece = (
+            df_pieces_edite.iloc[0]["Couleur marquage"]
+            if (df_pieces_edite is not None and not df_pieces_edite.empty)
+            else init_piece_marquage
+        )
+
         specs_mises_a_jour = {
             "hauteur": t3_haut_titre,
             "largeur": init_larg,
@@ -451,16 +529,8 @@ else:
             "couleur": t3_couleur_nom,
             "titrage_couleur": t3_marquage_nom,
             "cocher_piece_titre": has_pieces,
-            "couleur_pieces_toile": (
-                df_pieces_edite.iloc[0]["Couleur pièce"]
-                if (df_pieces_edite is not None and not df_pieces_edite.empty)
-                else init_piece_couleur
-            ),
-            "marquage_pieces": (
-                df_pieces_edite.iloc[0]["Couleur marquage"]
-                if (df_pieces_edite is not None and not df_pieces_edite.empty)
-                else init_piece_marquage
-            ),
+            "couleur_pieces_toile": c_piece,
+            "marquage_pieces": m_piece,
             "nombre_pieces_titre": (
                 len(df_pieces_edite) if df_pieces_edite is not None else 0
             ),
@@ -501,11 +571,23 @@ else:
         paliers_mm.append(int(t3_haut_maquette))
 
       is_long = t3_sens_titrage == "Long"
+      css_orient = (
+          "writing-mode: vertical-rl; transform: rotate(90deg);"
+          if is_long
+          else ""
+      )
 
-      html_gabarit = f"""
-            <div style="display: flex; font-family: monospace; background-color: #f8f9fa; padding: 20px; border-radius: 5px; min-height: {hauteur_visuelle_px + 60}px;">
-                <div style="position: relative; height: {hauteur_visuelle_px}px; width: 60px; border-right: 2px solid #ccc; text-align: right; padding-right: 8px;">
-            """
+      html_gabarit = (
+          '<div style="display: flex; font-family: monospace;'
+          " background-color: #f8f9fa; padding: 20px; border-radius: 5px;"
+          f' min-height: {hauteur_visuelle_px + 60}px;">'
+      )
+      html_gabarit += (
+          f'<div style="position: relative; height: {hauteur_visuelle_px}px;'
+          " width: 60px; border-right: 2px solid #ccc; text-align: right;"
+          ' padding-right: 8px;">'
+      )
+
       for mm in paliers_mm:
         pos_depuis_bas = mm * px_par_mm
         correction_top = hauteur_visuelle_px - pos_depuis_bas - 6
@@ -514,10 +596,14 @@ else:
             f' 8px; font-size: 11px; color: #555;">{mm} mm —</div>'
         )
 
-      html_gabarit += f"""
-                </div>
-                <div style="position: relative; width: {largeur_visuelle_px}px; height: {hauteur_visuelle_px}px; background-color: {couleur_fond_html}; border: 2px solid #111; margin-left: 20px; box-shadow: inset 0 0 10px rgba(0,0,0,0.3); transition: all 0.2s ease;">
-            """
+      html_gabarit += "</div>"
+      html_gabarit += (
+          f'<div style="position: relative; width: {largeur_visuelle_px}px;'
+          f" height: {hauteur_visuelle_px}px; background-color:"
+          f" {couleur_fond_html}; border: 2px solid #111; margin-left: 20px;"
+          " box-shadow: inset 0 0 10px rgba(0,0,0,0.3); transition: all 0.2s"
+          ' ease;">'
+      )
 
       # 1. Pièces de titre
       if (
@@ -541,24 +627,28 @@ else:
             top_p_px = hauteur_visuelle_px - bottom_p_px - haut_p_px
 
             if txt_p and txt_p != "None":
-              lignes_p = txt_p.split("\n")
+              lignes_p = [l.strip() for l in txt_p.split("\n") if l.strip()]
               texte_piece_html = "<br>".join(
-                  [f"<span>{l.strip()}</span>" for l in lignes_p if l.strip()]
+                  [f"<span>{l}</span>" for l in lignes_p]
               )
             else:
               texte_piece_html = ""
 
-            css_piece_orient = (
-                "writing-mode: vertical-rl; transform: rotate(90deg);"
-                if is_long
-                else ""
+            html_gabarit += (
+                f'<div style="position: absolute; top: {top_p_px}px; width:'
+                f" 100%; height: {haut_p_px}px; background-color:"
+                f" {bg_piece_html}; border: 1.5px dashed #fff; box-shadow: 0 0"
+                " 4px rgba(0,0,0,0.5); display: flex; align-items: center;"
+                ' justify-content: center; text-align: center; overflow:'
+                f' hidden;" title="Pièce de titre ({c_p_nom}) -'
+                f' H:{haut_p_mm}mm">'
             )
-
-            html_gabarit += f"""
-                        <div style="position: absolute; top: {top_p_px}px; width: 100%; height: {haut_p_px}px; background-color: {bg_piece_html}; border: 1.5px dashed #fff; box-shadow: 0 0 4px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; text-align: center; overflow: hidden;" title="Pièce de titre ({c_p_nom}) - H:{haut_p_mm}mm">
-                            <div style="color: {txt_piece_html}; font-size: 11px; font-weight: bold; text-transform: uppercase; line-height: 1.2; padding: 0 2px; {css_piece_orient}">{texte_piece_html}</div>
-                        </div>
-                        """
+            html_gabarit += (
+                f'<div style="color: {txt_piece_html}; font-size: 11px;'
+                " font-weight: bold; text-transform: uppercase; line-height:"
+                f' 1.2; padding: 0 2px; {css_orient}">{texte_piece_html}</div>'
+            )
+            html_gabarit += "</div>"
 
       # 2. Lignes directes sur le dos
       for _, row_data in df_edite_lignes.iterrows():
@@ -583,21 +673,22 @@ else:
           bottom_offset = float(mm_pos) * px_par_mm
           top_offset_px = hauteur_visuelle_px - bottom_offset - 8
 
-          css_orient = (
+          css_span = (
               "writing-mode: vertical-rl; transform: rotate(90deg); display:"
               " inline-block;"
               if is_long
               else ""
           )
 
-          html_gabarit += f"""
-                    <div style="position: absolute; top: {top_offset_px}px; width: 100%; text-align: center; color: {coloration_ligne}; font-size: 13px; font-weight: bold; {fond_alerte} text-transform: uppercase; white-space: nowrap; overflow: visible;" title="Position: {mm_pos}mm">
-                        <span style="{css_orient}">{txt}</span>
-                    </div>
-                    """
+          html_gabarit += (
+              f'<div style="position: absolute; top: {top_offset_px}px; width:'
+              " 100%; text-align: center; color: {coloration_ligne};"
+              " font-size: 13px; font-weight: bold; {fond_alerte}"
+              " text-transform: uppercase; white-space: nowrap; overflow:"
+              f' visible;" title="Position: {mm_pos}mm">'
+          )
+          html_gabarit += f'<span style="{css_span}">{txt}</span>'
+          html_gabarit += "</div>"
 
-      html_gabarit += f"""
-                </div>
-            </div>
-            """
+      html_gabarit += "</div></div>"
       st.components.v1.html(html_gabarit, height=hauteur_visuelle_px + 80)

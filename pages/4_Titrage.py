@@ -400,10 +400,7 @@ else:
             "Sens du titrage",
             ["Classique", "Long"],
             index=idx_s,
-            help=(
-                "Classique = horizontal | Long = vertical (lettres empilées de"
-                " haut en bas)"
-            ),
+            help="Classique = horizontal | Long = texte couché (de bas en haut)",
         )
 
       st.write("---")
@@ -658,8 +655,9 @@ else:
             else:
               texte_piece_html = ""
 
-            css_orient_p = (
-                "writing-mode: vertical-rl; text-orientation: upright;"
+            style_orient_p = (
+                "transform: rotate(-90deg); transform-origin: center center;"
+                " white-space: nowrap;"
                 if is_long
                 else ""
             )
@@ -680,7 +678,7 @@ else:
                 + txt_piece_html
                 + "; font-size: 11px; font-weight: bold; text-transform:"
                 " uppercase; line-height: 1.2; padding: 0 2px; "
-                + css_orient_p
+                + style_orient_p
                 + '">'
                 + texte_piece_html
                 + "</div>"
@@ -711,21 +709,22 @@ else:
           top_offset_px = hauteur_visuelle_px - bottom_offset - 10
 
           if is_long:
-            # text-orientation: upright force chaque lettre à rester droite et à s'empiler de haut en bas
+            # Titrage couché de bas en haut : rotation de -90° centrée au milieu du dos
             html_str += (
                 '<div style="position: absolute; top: '
                 + str(top_offset_px)
-                + "px; left: 0; width: 100%; display: flex; justify-content:"
-                ' center; align-items: center;">'
+                + "px; left: 0; width: 100%; height: 20px; display: flex;"
+                " justify-content: center; align-items: center;"
+                ' pointer-events: none;">'
             )
             html_str += (
                 '<span style="color: '
                 + coloration_ligne
                 + "; font-size: 13px; font-weight: bold; "
                 + fond_alerte
-                + " text-transform: uppercase; writing-mode: vertical-rl;"
-                " text-orientation: upright; letter-spacing: 2px;"
-                ' white-space: nowrap; display: inline-block;">'
+                + " text-transform: uppercase; transform: rotate(-90deg);"
+                " transform-origin: center center; white-space: nowrap;"
+                ' display: inline-block; pointer-events: auto;">'
                 + txt
                 + "</span>"
             )

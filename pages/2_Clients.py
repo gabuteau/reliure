@@ -23,7 +23,7 @@ def recuperer_fiche_client(nom_client):
   return reponse.data[0] if reponse.data else None
 
 
-def enregistrer_client(nom, adresse, contact, notes, griffe):
+def enregistrer_client(nom, adresse, contact, notes, griffe, griffe_pos_mm):
   supabase = obtenir_client_supabase()
   donnees = {
       "nom": nom,
@@ -31,22 +31,19 @@ def enregistrer_client(nom, adresse, contact, notes, griffe):
       "contact_nom": contact,
       "notes": notes,
       "griffe": griffe,
+      "griffe_position_mm": int(griffe_pos_mm),
   }
 
   try:
-    # 1. Vérification si le client existe déjà
     verification = (
         supabase.table("clients").select("nom").eq("nom", nom).execute()
     )
 
     if verification.data:
-      # 2. Mise à jour si existant
       supabase.table("clients").update(donnees).eq("nom", nom).execute()
     else:
-      # 3. Insertion propre si nouveau client
       supabase.table("clients").insert(donnees).execute()
 
-      # --- DUPLICATION DES TARIFS INVELAC PAR DÉFAUT ---
       try:
         tarifs_invelac = (
             supabase.table("tarifs_clients")
@@ -72,7 +69,6 @@ def enregistrer_client(nom, adresse, contact, notes, griffe):
             "Le client a été créé, mais la copie des tarifs par défaut"
             f" (Invelac) a échoué : {e_tarifs}"
         )
-      # --- FIN DUPLICATION ---
 
   except Exception as e:
     st.error(f"Détail de l'erreur retournée par la base : {e}")
@@ -92,7 +88,6 @@ def supprimer_client_globale(nom_client):
   supabase.table("clients").delete().eq("nom", nom_client).execute()
 
 
-# --- CONFIGURATION ET INTERFACE STREAMLIT ---
 st.set_page_config(page_title="Gestion des Clients", layout="wide")
 st.title("🏢 Gestion de l'Annuaire des Clients")
 
@@ -116,12 +111,19 @@ if action_client == "➕ Créer un nouveau client":
     st.markdown("##### 🏷️ Option Griffe (Marquage fixe de bas de dos)")
     activer_griffe_creation = st.checkbox("Activer une griffe pour ce client")
     nc_griffe = ""
+    nc_griffe_pos = 15
     if activer_griffe_creation:
-      nc_griffe = st.text_area(
-          "Libellé de la griffe (1 à 3 lignes max)",
-          placeholder="Ex: E.N.S.\nou\nARCHIVES\nDEPARTEMENTALES",
-          height=90,
-      )
+      col_g1, col_g2 = st.columns([3, 1])
+      with col_g1:
+        nc_griffe = st.text_area(
+            "Libellé de la griffe",
+            placeholder="Ex: E.N.S.\nou\nARCHIVES\nDEPARTEMENTALES",
+            height=90,
+        )
+      with col_g2:
+        nc_griffe_pos = st.number_input(
+            "Position bas (mm)", min_value=0, max_value=200, value=15, step=1
+        )
 
     if st.form_submit_button("💾 Enregistrer le nouveau client") and nc_nom:
       enregistrer_client(
@@ -130,6 +132,7 @@ if action_client == "➕ Créer un nouveau client":
           nc_contact,
           nc_notes,
           nc_griffe.strip() if activer_griffe_creation else "",
+          nc_griffe_pos,
       )
       st.success(f"Client '{nc_nom}' synchronisé via API Supabase.")
       st.rerun()
@@ -143,6 +146,7 @@ else:
 
     if fiche:
       griffe_actuelle = fiche.get("griffe") or ""
+      griffe_pos_actuelle = fiche.get("griffe_position_mm") or 15
 
       with st.form("form_modif_client"):
         mod_contact = st.text_input(
@@ -162,13 +166,25 @@ else:
             value=bool(griffe_actuelle.strip()),
         )
         mod_griffe = ""
+        mod_griffe_pos = griffe_pos_actuelle
+
         if activer_griffe_modif:
-          mod_griffe = st.text_area(
-              "Libellé de la griffe (1 à 3 lignes max)",
-              value=griffe_actuelle,
-              placeholder="Ex: E.N.S.",
-              height=90,
-          )
+          col_mg1, col_mg2 = st.columns([3, 1])
+          with col_mg1:
+            mod_griffe = st.text_area(
+                "Libellé de la griffe",
+                value=griffe_actuelle,
+                placeholder="Ex: E.N.S.",
+                height=90,
+            )
+          with col_mg2:
+            mod_griffe_pos = st.number_input(
+                "Position bas (mm)",
+                min_value=0,
+                max_value=200,
+                value=int(griffe_pos_actuelle),
+                step=1,
+            )
 
         if st.form_submit_button("💾 Sauvegarder les modifications"):
           enregistrer_client(
@@ -177,6 +193,7 @@ else:
               mod_contact,
               mod_notes,
               mod_griffe.strip() if activer_griffe_modif else "",
+              mod_griffe_pos,
           )
           st.success("Fiche client mise à jour.")
           st.rerun()

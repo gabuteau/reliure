@@ -125,7 +125,7 @@ def recuperer_specs_livre(client, train, num_livre):
             .select(
                 "largeur, hauteur, epaisseur, type_toile, couleur, titrage_couleur,"
                 " cocher_piece_titre, couleur_pieces_toile, marquage_pieces,"
-                " nombre_pieces_titre, sens_titrage"
+                " nombre_pieces_titre, sens_titrage, police_style"
             )
             .eq("nom_client", str(client).strip())
             .eq("numero_train", str(train).strip())
@@ -147,41 +147,12 @@ def recuperer_specs_livre(client, train, num_livre):
                 r.get("marquage_pieces") or "OR",
                 r.get("nombre_pieces_titre") or 1,
                 r.get("sens_titrage") or "Classique",
+                r.get("police_style") or "Simple",
             )
     except Exception:
-        try:
-            reponse = (
-                supabase.table("fiches_livres")
-                .select(
-                    "largeur, hauteur, epaisseur, type_toile, couleur,"
-                    " titrage_couleur, cocher_piece_titre, couleur_pieces_toile,"
-                    " marquage_pieces, nombre_pieces_titre"
-                )
-                .eq("nom_client", str(client).strip())
-                .eq("numero_train", str(train).strip())
-                .eq("numero_livre", num_livre_int)
-                .execute()
-            )
+        pass
 
-            if reponse.data:
-                r = reponse.data[0]
-                return (
-                    r.get("hauteur") or 220,
-                    r.get("largeur") or 160,
-                    r.get("epaisseur") or 20,
-                    r.get("type_toile") or "Buckram",
-                    r.get("couleur") or "Noir",
-                    r.get("titrage_couleur") or "OR",
-                    bool(r.get("cocher_piece_titre", False)),
-                    r.get("couleur_pieces_toile") or "Rouge",
-                    r.get("marquage_pieces") or "OR",
-                    r.get("nombre_pieces_titre") or 1,
-                    "Classique",
-                )
-        except Exception as e:
-            st.warning("Chargement des valeurs par défaut: " + str(e))
-
-    return 220, 160, 20, "Buckram", "Noir", "OR", False, "Rouge", "OR", 1, "Classique"
+    return 220, 160, 20, "Buckram", "Noir", "OR", False, "Rouge", "OR", 1, "Classique", "Simple"
 
 
 def recuperer_titrage_enregistre(client, train, num_livre):
@@ -304,6 +275,7 @@ def generer_image_gabarit(
     df_lignes,
     griffe_texte="",
     griffe_pos_mm=15,
+    police_style="Simple",
 ):
     facteur_px = 2.5
     h_dos_px = max(min(int(haut_maquette * facteur_px), 600), 350)
@@ -326,6 +298,12 @@ def generer_image_gabarit(
         font_griffe = ImageFont.load_default()
 
     px_par_mm = h_dos_px / haut_maquette
+
+    def tracer_texte(pt, txt, fill_color, fnt, anc="mm", alg="center"):
+        draw.text(pt, txt, fill=fill_color, font=fnt, anchor=anc, align=alg)
+        if police_style == "Double":
+            x, y = pt
+            draw.text((x + 1, y), txt, fill=fill_color, font=fnt, anchor=anc, align=alg)
 
     # 1. Règle graduée
     draw.line(
@@ -403,32 +381,17 @@ def generer_image_gabarit(
                             for idx_char, char in enumerate(ligne):
                                 if char != " ":
                                     y_char = y_start + (idx_char * pas_px)
-                                    draw.text(
-                                        (x_col, y_char),
-                                        char,
-                                        fill=couleur_piece_finale,
-                                        font=font,
-                                        anchor="mm",
-                                    )
+                                    tracer_texte((x_col, y_char), char, couleur_piece_finale, font, "mm", "center")
                     else:
                         txt_p_full = "\n".join(lignes_p)
-                        bbox_p = draw.textbbox(
-                            (0, 0), txt_p_full, font=font, align="center"
-                        )
+                        bbox_p = draw.textbbox((0, 0), txt_p_full, font=font, align="center")
                         w_txt_p = bbox_p[2] - bbox_p[0]
                         couleur_piece_finale = (
                             "#d9534f" if w_txt_p > (w_dos_px - 4) else txt_p_hex
                         )
 
                         y_curr = y_p_px + (h_p_px / 2)
-                        draw.text(
-                            (x_dos + (w_dos_px / 2), y_curr),
-                            txt_p_full,
-                            fill=couleur_piece_finale,
-                            font=font,
-                            anchor="mm",
-                            align="center",
-                        )
+                        tracer_texte((x_dos + (w_dos_px / 2), y_curr), txt_p_full, couleur_piece_finale, font, "mm", "center")
 
     # 4. Lignes directes sur le dos
     if df_lignes is not None and not df_lignes.empty:
@@ -459,13 +422,7 @@ def generer_image_gabarit(
                         for idx_char, char in enumerate(ligne):
                             if char != " ":
                                 y_lettre = y_depart_px + (idx_char * pas_lettre_px)
-                                draw.text(
-                                    (x_col, y_lettre),
-                                    char,
-                                    fill=couleur_ligne,
-                                    font=font,
-                                    anchor="mm",
-                                )
+                                tracer_texte((x_col, y_lettre), char, couleur_ligne, font, "mm", "center")
                 else:
                     y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
                     txt_full = "\n".join(lignes_txt)
@@ -475,16 +432,9 @@ def generer_image_gabarit(
                     is_debordement = w_txt > (w_dos_px - 4)
                     couleur_ligne = "#d9534f" if is_debordement else c_marq_hex
 
-                    draw.text(
-                        (x_center, y_l_px),
-                        txt_full,
-                        fill=couleur_ligne,
-                        font=font,
-                        anchor="mm",
-                        align="center",
-                    )
+                    tracer_texte((x_center, y_l_px), txt_full, couleur_ligne, font, "mm", "center")
 
-    # 5. Griffe du client avec alignement sur la ligne du bas (remontée vers le haut)
+    # 5. Griffe du client avec alignement sur la ligne du bas
     if griffe_texte:
         x_center = x_dos + (w_dos_px / 2)
         chars_max_par_ligne = max(int((w_dos_px - 8) / 7), 1)
@@ -516,14 +466,7 @@ def generer_image_gabarit(
             w_g = bbox_g[2] - bbox_g[0]
             c_griffe = "#d9534f" if w_g > (w_dos_px - 4) else c_marq_hex
 
-            draw.text(
-                (x_center, y_ligne_px),
-                txt_ligne,
-                fill=c_griffe,
-                font=font_griffe,
-                anchor="mm",
-                align="center",
-            )
+            tracer_texte((x_center, y_ligne_px), txt_ligne, c_griffe, font_griffe, "mm", "center")
 
     return img
 
@@ -536,12 +479,12 @@ liste_clients_existants = lister_tous_les_clients()
 if not liste_clients_existants:
     st.warning("⚠️ Créez d'abord un client pour utiliser le module de titrage.")
 else:
-    # --- INITIALISATION PAR DÉFAUT POUR ÉVITER LES NAMEERROR ---
     t3_haut_maquette = 225
     t3_larg_dos_utile = 30
     t3_couleur_nom = "Noir"
     t3_marquage_nom = "OR"
     t3_sens_titrage = "Classique"
+    t3_police_style = "Simple"
     has_pieces = False
     df_pieces_edite = None
     df_edite_lignes = None
@@ -554,21 +497,15 @@ else:
         st.subheader("Clé de sélection du Livre")
         c_meta1, c_meta2 = st.columns(2)
         with c_meta1:
-            t3_client = st.selectbox(
-                "1. Client référent", options=liste_clients_existants
-            )
+            t3_client = st.selectbox("1. Client référent", options=liste_clients_existants)
             t3_trains = lister_les_trains_du_client(t3_client)
-            t3_train_sel = st.selectbox(
-                "2. N° de train", options=["-- Choisir --"] + t3_trains
-            )
+            t3_train_sel = st.selectbox("2. N° de train", options=["-- Choisir --"] + t3_trains)
 
         livre_charge_valide = False
         with c_meta2:
             t3_date = st.date_input("Date d'atelier", value=datetime.now())
             if t3_train_sel != "-- Choisir --":
-                liste_livres = ["-- Choisir un livre --"] + lister_les_livres_du_train(
-                    t3_client, t3_train_sel
-                )
+                liste_livres = ["-- Choisir un livre --"] + lister_les_livres_du_train(t3_client, t3_train_sel)
                 t3_livre_num = st.selectbox("3. N° du livre", options=liste_livres)
 
                 if t3_livre_num and t3_livre_num != "-- Choisir un livre --":
@@ -584,6 +521,7 @@ else:
                         init_piece_marquage,
                         init_nb_pieces,
                         init_sens_titrage,
+                        init_police_style,
                     ) = recuperer_specs_livre(t3_client, t3_train_sel, t3_livre_num)
                     livre_charge_valide = True
             else:
@@ -591,10 +529,7 @@ else:
 
     if not livre_charge_valide:
         st.write("---")
-        st.info(
-            "💡 **En attente d'instructions :** Veuillez sélectionner un **N° de"
-            " train** et un **N° de livre** existants."
-        )
+        st.info("💡 **En attente d'instructions :** Veuillez sélectionner un **N° de train** et un **N° de livre** existants.")
     else:
         with col_form_saisie:
             st.write("---")
@@ -602,78 +537,37 @@ else:
 
             c_dim1, c_dim2, c_dim3, c_dim4 = st.columns(4)
             with c_dim1:
-                t3_haut_titre = st.number_input(
-                    "Hauteur du titre (mm)",
-                    min_value=10,
-                    max_value=1000,
-                    value=int(init_haut),
-                    step=1,
-                )
-
+                t3_haut_titre = st.number_input("Hauteur du titre (mm)", min_value=10, max_value=1000, value=int(init_haut), step=1)
             with c_dim2:
-                t3_haut_maquette = st.number_input(
-                    "Hauteur maquette (mm)",
-                    min_value=10,
-                    max_value=1000,
-                    value=int(init_haut + 5),
-                    step=1,
-                )
-
+                t3_haut_maquette = st.number_input("Hauteur maquette (mm)", min_value=10, max_value=1000, value=int(init_haut + 5), step=1)
             with c_dim3:
-                t3_larg_dos_utile = st.number_input(
-                    "Largeur utile du dos (mm)",
-                    min_value=5,
-                    max_value=500,
-                    value=int(init_ep + 10),
-                    step=1,
-                )
-
+                t3_larg_dos_utile = st.number_input("Largeur utile du dos (mm)", min_value=5, max_value=500, value=int(init_ep + 10), step=1)
             with c_dim4:
                 idx_m = (
                     ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"].index(init_marquage)
                     if init_marquage in ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
                     else 0
                 )
-                t3_marquage_nom = st.selectbox(
-                    "Marquage général",
-                    ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"],
-                    index=idx_m,
-                )
+                t3_marquage_nom = st.selectbox("Marquage général", ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"], index=idx_m)
 
-            c_toi1, c_toi2, c_toi3 = st.columns(3)
+            c_toi1, c_toi2, c_toi3, c_toi4 = st.columns(4)
             types_toiles_dispos = charger_types_toile_supabase()
             with c_toi1:
-                idx_t = (
-                    types_toiles_dispos.index(init_type_toile)
-                    if init_type_toile in types_toiles_dispos
-                    else 0
-                )
-                t3_type_toile = st.selectbox(
-                    "Type de toile", types_toiles_dispos, index=idx_t
-                )
+                idx_t = types_toiles_dispos.index(init_type_toile) if init_type_toile in types_toiles_dispos else 0
+                t3_type_toile = st.selectbox("Type de toile", types_toiles_dispos, index=idx_t)
 
             couleurs_toile_dispos = charger_couleurs_par_toile_supabase(t3_type_toile)
             with c_toi2:
-                idx_c = (
-                    couleurs_toile_dispos.index(init_couleur_toile)
-                    if init_couleur_toile in couleurs_toile_dispos
-                    else 0
-                )
-                t3_couleur_nom = st.selectbox(
-                    "Couleur de la toile", couleurs_toile_dispos, index=idx_c
-                )
+                idx_c = couleurs_toile_dispos.index(init_couleur_toile) if init_couleur_toile in couleurs_toile_dispos else 0
+                t3_couleur_nom = st.selectbox("Couleur de la toile", couleurs_toile_dispos, index=idx_c)
 
             with c_toi3:
                 idx_s = 1 if init_sens_titrage == "Long" else 0
-                t3_sens_titrage = st.selectbox(
-                    "Sens du titrage",
-                    ["Classique", "Long"],
-                    index=idx_s,
-                    help=(
-                        "Classique = horizontal | Long = lettres empilées de haut en"
-                        " bas"
-                    ),
-                )
+                t3_sens_titrage = st.selectbox("Sens du titrage", ["Classique", "Long"], index=idx_s)
+
+            with c_toi4:
+                idx_pstyle = 1 if init_police_style == "Double" else 0
+                t3_police_style = st.selectbox("Empreinte police", ["Simple", "Double"], index=idx_pstyle)
 
             # --- GESTION DE LA GRIFFE CLIENT ---
             griffe_registree, griffe_pos_defaut = recuperer_griffe_client(t3_client)
@@ -684,31 +578,17 @@ else:
                 st.subheader("🏷️ Griffe Client")
                 c_grf1, c_grf2 = st.columns([2, 1])
                 with c_grf1:
-                    inclure_griffe = st.checkbox(
-                        f"Imprimer la griffe client ({griffe_registree.replace(chr(10), ' / ')})",
-                        value=True,
-                    )
+                    inclure_griffe = st.checkbox(f"Imprimer la griffe client ({griffe_registree.replace(chr(10), ' / ')})", value=True)
                 with c_grf2:
                     if inclure_griffe:
-                        griffe_hauteur_mm = st.number_input(
-                            "Position bas (mm)",
-                            min_value=0,
-                            max_value=200,
-                            value=int(griffe_pos_defaut),
-                            step=1,
-                        )
+                        griffe_hauteur_mm = st.number_input("Position bas (mm)", min_value=0, max_value=200, value=int(griffe_pos_defaut), step=1)
                         griffe_a_afficher = griffe_registree
 
             st.write("---")
             st.subheader("🧩 Gestion des Pièces de titre")
 
-            has_pieces = st.checkbox(
-                "Activer la/les pièce(s) de titre", value=init_has_piece
-            )
-
-            df_lignes_existant, df_pieces_existant = recuperer_titrage_enregistre(
-                t3_client, t3_train_sel, t3_livre_num
-            )
+            has_pieces = st.checkbox("Activer la/les pièce(s) de titre", value=init_has_piece)
+            df_lignes_existant, df_pieces_existant = recuperer_titrage_enregistre(t3_client, t3_train_sel, t3_livre_num)
 
             if has_pieces:
                 if df_pieces_existant is not None and not df_pieces_existant.empty:
@@ -722,52 +602,18 @@ else:
                         "Titre sur pièce": "TITRE LIGNE 1\nSOUS-TITRE LIGNE 2",
                     }])
 
-                list_couleurs_gen = [
-                    "Noir",
-                    "Rouge",
-                    "Bleu",
-                    "Vert",
-                    "Jaune",
-                    "Orange",
-                    "Violet",
-                    "Marron",
-                ]
+                list_couleurs_gen = ["Noir", "Rouge", "Bleu", "Vert", "Jaune", "Orange", "Violet", "Marron"]
                 list_marquages_gen = ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
 
-                editor_key_p = (
-                    "editor_pieces_"
-                    + str(t3_client)
-                    + "_"
-                    + str(t3_train_sel)
-                    + "_"
-                    + str(t3_livre_num)
-                )
+                editor_key_p = f"editor_pieces_{t3_client}_{t3_train_sel}_{t3_livre_num}"
                 df_pieces_edite = st.data_editor(
                     df_pieces_initial,
                     column_config={
-                        "Position (mm depuis le bas)": st.column_config.NumberColumn(
-                            "Position bas (mm)",
-                            min_value=0,
-                            max_value=t3_haut_maquette,
-                            step=1,
-                            required=True,
-                        ),
-                        "Hauteur pièce (mm)": st.column_config.NumberColumn(
-                            "Hauteur (mm)",
-                            min_value=5,
-                            max_value=t3_haut_maquette,
-                            step=1,
-                            required=True,
-                        ),
-                        "Couleur pièce": st.column_config.SelectboxColumn(
-                            "Couleur pièce", options=list_couleurs_gen, required=True
-                        ),
-                        "Couleur marquage": st.column_config.SelectboxColumn(
-                            "Marquage", options=list_marquages_gen, required=True
-                        ),
-                        "Titre sur pièce": st.column_config.TextColumn(
-                            "Titre / Texte (Multiligne)", required=False
-                        ),
+                        "Position (mm depuis le bas)": st.column_config.NumberColumn("Position bas (mm)", min_value=0, max_value=t3_haut_maquette, step=1, required=True),
+                        "Hauteur pièce (mm)": st.column_config.NumberColumn("Hauteur (mm)", min_value=5, max_value=t3_haut_maquette, step=1, required=True),
+                        "Couleur pièce": st.column_config.SelectboxColumn("Couleur pièce", options=list_couleurs_gen, required=True),
+                        "Couleur marquage": st.column_config.SelectboxColumn("Marquage", options=list_marquages_gen, required=True),
+                        "Titre sur pièce": st.column_config.TextColumn("Titre / Texte (Multiligne)", required=False),
                     },
                     num_rows="dynamic",
                     use_container_width=True,
@@ -775,9 +621,7 @@ else:
                 )
 
             st.write("---")
-            st.subheader(
-                "✍️ Composition des lignes directes sur le dos (Position en mm)"
-            )
+            st.subheader("✍️ Composition des lignes directes sur le dos (Position en mm)")
 
             if df_lignes_existant is not None:
                 df_lignes_initial = df_lignes_existant
@@ -787,27 +631,12 @@ else:
                     "Titrage": "TITRE",
                 }])
 
-            editor_key_l = (
-                "editor_lignes_"
-                + str(t3_client)
-                + "_"
-                + str(t3_train_sel)
-                + "_"
-                + str(t3_livre_num)
-            )
+            editor_key_l = f"editor_lignes_{t3_client}_{t3_train_sel}_{t3_livre_num}"
             df_edite_lignes = st.data_editor(
                 df_lignes_initial,
                 column_config={
-                    "Hauteur du titre (mm)": st.column_config.NumberColumn(
-                        "Position (mm depuis le bas)",
-                        min_value=0,
-                        max_value=t3_haut_maquette,
-                        step=1,
-                        required=True,
-                    ),
-                    "Titrage": st.column_config.TextColumn(
-                        "Texte à imprimer", required=True
-                    ),
+                    "Hauteur du titre (mm)": st.column_config.NumberColumn("Position (mm depuis le bas)", min_value=0, max_value=t3_haut_maquette, step=1, required=True),
+                    "Titrage": st.column_config.TextColumn("Texte à imprimer", required=True),
                 },
                 num_rows="dynamic",
                 use_container_width=True,
@@ -815,11 +644,7 @@ else:
             )
 
             st.write("---")
-            if st.button(
-                "💾 Sauvegarder les modifications et le titrage",
-                type="primary",
-                use_container_width=True,
-            ):
+            if st.button("💾 Sauvegarder les modifications et le titrage", type="primary", use_container_width=True):
                 c_piece = (
                     df_pieces_edite.iloc[0]["Couleur pièce"]
                     if (df_pieces_edite is not None and not df_pieces_edite.empty)
@@ -841,10 +666,9 @@ else:
                     "cocher_piece_titre": has_pieces,
                     "couleur_pieces_toile": c_piece,
                     "marquage_pieces": m_piece,
-                    "nombre_pieces_titre": (
-                        len(df_pieces_edite) if df_pieces_edite is not None else 0
-                    ),
+                    "nombre_pieces_titre": (len(df_pieces_edite) if df_pieces_edite is not None else 0),
                     "sens_titrage": t3_sens_titrage,
+                    "police_style": t3_police_style,
                 }
 
                 if sauvegarder_titrage_sur_base(
@@ -856,13 +680,7 @@ else:
                     df_pieces_edite if has_pieces else None,
                     specs_mises_a_jour,
                 ):
-                    st.success(
-                        "✅ Fiche & Composition enregistrées (Livre N°"
-                        + str(t3_livre_num)
-                        + " — Train "
-                        + str(t3_train_sel)
-                        + ")"
-                    )
+                    st.success(f"✅ Fiche & Composition enregistrées (Livre N°{t3_livre_num} — Train {t3_train_sel})")
 
         # --- RENDU VISUEL VIA GENERATION D'IMAGE (PILLOW) ---
         with col_gabarit_visualisation:
@@ -882,6 +700,7 @@ else:
                 df_edite_lignes,
                 griffe_texte=griffe_a_afficher,
                 griffe_pos_mm=griffe_hauteur_mm,
+                police_style=t3_police_style,
             )
 
             buf = io.BytesIO()

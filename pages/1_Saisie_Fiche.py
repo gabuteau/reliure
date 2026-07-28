@@ -94,7 +94,6 @@ def enregistrer_ou_mettre_a_jour_livre(donnees):
 
 # --- GESTION DU RÉFÉRENTIEL TOILES & COULEURS ---
 def charger_types_toile_supabase():
-    """Récupère la liste unique des types de toile actifs depuis Supabase."""
     supabase = obtenir_client_supabase()
     try:
         reponse = supabase.table("referentiel_toiles").select("type_toile").execute()
@@ -104,7 +103,6 @@ def charger_types_toile_supabase():
         return ["Buckram", "Fantasia", "Métisse"]
 
 def charger_couleurs_par_toile_supabase(type_toile_selectionne):
-    """Récupère uniquement les couleurs associées à la toile sélectionnée."""
     supabase = obtenir_client_supabase()
     try:
         reponse = supabase.table("referentiel_toiles") \
@@ -244,11 +242,11 @@ else:
             lignes_sup = 0
             titrage_couleur = "N/A"
             police = "N/A"
+            police_style = "Simple"
             
             if not sans_titrage:
-                c_tit1, c_tit2, c_tit3, c_tit4 = st.columns(4)
+                c_tit1, c_tit2, c_tit3, c_tit4, c_tit5 = st.columns(5)
                 with c_tit1: 
-                    # Sens du titrage : "Classique" par défaut (index 1) lors d'un nouveau livre
                     idx_sens_defaut = 1
                     if donnees_edition and "titrage_sens" in donnees_edition:
                         if donnees_edition["titrage_sens"] == "Long":
@@ -261,12 +259,16 @@ else:
                 list_marq = ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
                 with c_tit3: titrage_couleur = st.selectbox("Marquage", list_marq, index=list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0)
                 with c_tit4: police = st.radio("Police", ["Elzévir", "Baton"], horizontal=True, index=0 if donnees_edition and donnees_edition["police"] == "Elzévir" else (1 if donnees_edition and donnees_edition["police"] in ["Baton", "Baskerville"] else 0))
+                
+                # SÉLECTION DU TYPE / STYLE DE POLICE (Simple / Double)
+                with c_tit5:
+                    idx_style = 0 if (not donnees_edition or donnees_edition.get("police_style") != "Double") else 1
+                    police_style = st.selectbox("Empreinte", ["Simple", "Double"], index=idx_style, help="Simple = trait fin standard | Double = composteur / frappe double trait")
 
             st.write("---")
             st.subheader("6. Habillage")
             c_toi1, c_toi2 = st.columns(2)
             
-            # 1. Sélection de la Toile depuis Supabase
             list_toile = charger_types_toile_supabase()
             
             with c_toi1: 
@@ -276,7 +278,6 @@ else:
                     index=list_toile.index(donnees_edition["type_toile"]) if donnees_edition and donnees_edition["type_toile"] in list_toile else 0
                 )
             
-            # 2. Récupération des couleurs filtrées UNIQUEMENT pour la toile choisie
             couleurs_filtrees = charger_couleurs_par_toile_supabase(type_toile)
             
             with c_toi2: 
@@ -384,6 +385,7 @@ else:
                     "lignes_sup": lignes_sup, 
                     "titrage_couleur": titrage_couleur, 
                     "police": police, 
+                    "police_style": police_style,
                     "type_toile": type_toile, 
                     "couleur": couleur,
                     "cocher_piece_titre": cocher_piece_titre, 

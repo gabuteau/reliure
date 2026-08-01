@@ -1,230 +1,124 @@
 import streamlit as st
 from supabase import create_client
 
-
 def obtenir_client_supabase():
-  return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 def lister_tous_les_clients():
-  supabase = obtenir_client_supabase()
-  try:
-    reponse = supabase.table("clients").select("nom").order("nom").execute()
-    return [row["nom"] for row in reponse.data]
-  except Exception:
-    return []
+    supabase = obtenir_client_supabase()
+    try:
+        reponse = supabase.table("clients").select("*").order("nom").execute()
+        return reponse.data
+    except Exception as e:
+        st.error(f"Erreur lors de la récupération des clients : {e}")
+        return []
 
+def enregistrer_ou_mettre_a_jour_client(donnees):
+    supabase = obtenir_client_supabase()
+    try:
+        supabase.table("clients").upsert(donnees).execute()
+        return True
+    except Exception as e:
+        st.error(f"Erreur lors de l'enregistrement : {e}")
+        return False
 
-def recuperer_fiche_client(nom_client):
-  supabase = obtenir_client_supabase()
-  reponse = (
-      supabase.table("clients").select("*").eq("nom", nom_client).execute()
-  )
-  return reponse.data[0] if reponse.data else None
-
-
-def enregistrer_client(nom, adresse, contact, notes, griffe, griffe_pos_mm):
-  supabase = obtenir_client_supabase()
-  donnees = {
-      "nom": nom,
-      "adresse": adresse,
-      "contact_nom": contact,
-      "notes": notes,
-      "griffe": griffe,
-      "griffe_position_mm": int(griffe_pos_mm),
-  }
-
-  try:
-    verification = (
-        supabase.table("clients").select("nom").eq("nom", nom).execute()
-    )
-
-    if verification.data:
-      supabase.table("clients").update(donnees).eq("nom", nom).execute()
-    else:
-      supabase.table("clients").insert(donnees).execute()
-
-      try:
-        tarifs_invelac = (
-            supabase.table("tarifs_clients")
-            .select("*")
-            .eq("nom_client", "Invelac")
-            .execute()
-        )
-
-        if tarifs_invelac.data:
-          nouvelles_lignes_tarifs = []
-          for t in tarifs_invelac.data:
-            nouvel_item = t.copy()
-            if "id" in nouvel_item:
-              del nouvel_item["id"]
-            nouvel_item["nom_client"] = nom
-            nouvelles_lignes_tarifs.append(nouvel_item)
-
-          supabase.table("tarifs_clients").insert(
-              nouvelles_lignes_tarifs
-          ).execute()
-      except Exception as e_tarifs:
-        st.warning(
-            "Le client a été créé, mais la copie des tarifs par défaut"
-            f" (Invelac) a échoué : {e_tarifs}"
-        )
-
-  except Exception as e:
-    st.error(f"Détail de l'erreur retournée par la base : {e}")
-
-
-def supprimer_client_globale(nom_client):
-  supabase = obtenir_client_supabase()
-  supabase.table("tarifs_clients").delete().eq(
-      "nom_client", nom_client
-  ).execute()
-  supabase.table("fiches_livres").delete().eq(
-      "nom_client", nom_client
-  ).execute()
-  supabase.table("titrage_system3").delete().eq(
-      "nom_client", nom_client
-  ).execute()
-  supabase.table("clients").delete().eq("nom", nom_client).execute()
-
+def supprimer_client(nom_client):
+    supabase = obtenir_client_supabase()
+    try:
+        supabase.table("clients").delete().eq("nom", nom_client).execute()
+        return True
+    except Exception as e:
+        st.error(f"Erreur lors de la suppression : {e}")
+        return False
 
 st.set_page_config(page_title="Gestion des Clients", layout="wide")
-st.title("🏢 Gestion de l'Annuaire des Clients")
+st.title("👤 Fiches Clients & Paramétrage Griffe")
 
-action_client = st.radio(
-    "Action :",
-    ["Sélectionner / Modifier un client", "➕ Créer un nouveau client"],
-    horizontal=True,
-)
-st.write("---")
+col1, col2 = st.columns([1.2, 0.8])
 
-liste_clients_existants = lister_tous_les_clients()
+clients_existants = lister_tous_les_clients()
+noms_clients = [c["nom"] for c in clients_existants]
 
-if action_client == "➕ Créer un nouveau client":
-  with st.form("form_creer_client"):
-    nc_nom = st.text_input("Nom de l'établissement / Client *").strip()
-    nc_contact = st.text_input("Nom du contact référent")
-    nc_adresse = st.text_area("Adresse complète")
-    nc_notes = st.text_area("Notes d'atelier spécifiques")
+with col1:
+    st.subheader("Saisie / Modification d'un Client")
+    
+    choix_action = st.radio("Action", ["Nouveau client", "Modifier un client existant"], horizontal=True)
+    
+    client_edition = None
+    if choix_action == "Modifier un client existant":
+        if not noms_clients:
+            st.info("Aucun client enregistré pour le moment.")
+        else:
+            nom_sel = st.selectbox("Sélectionner le client à modifier", options=noms_clients)
+            client_edition = next((c for c in clients_existants if c["nom"] == nom_sel), None)
 
     st.write("---")
-    st.markdown("##### 🏷️ Option Griffe (Marquage fixe de bas de dos)")
-    activer_griffe_creation = st.checkbox("Activer une griffe pour ce client")
-    nc_griffe = ""
-    nc_griffe_pos = 15
-    if activer_griffe_creation:
-      col_g1, col_g2 = st.columns([3, 1])
-      with col_g1:
-        nc_griffe = st.text_area(
-            "Libellé de la griffe",
-            placeholder="Ex: E.N.S.\nou\nARCHIVES\nDEPARTEMENTALES",
-            height=90,
-        )
-      with col_g2:
-        nc_griffe_pos = st.number_input(
-            "Position bas (mm)", min_value=0, max_value=200, value=15, step=1
-        )
-
-    if st.form_submit_button("💾 Enregistrer le nouveau client") and nc_nom:
-      enregistrer_client(
-          nc_nom,
-          nc_adresse,
-          nc_contact,
-          nc_notes,
-          nc_griffe.strip() if activer_griffe_creation else "",
-          nc_griffe_pos,
-      )
-      st.success(f"Client '{nc_nom}' synchronisé via API Supabase.")
-      st.rerun()
-
-else:
-  if liste_clients_existants:
-    client_sel = st.selectbox(
-        "Choisir le client à gérer :", options=liste_clients_existants
+    
+    # Formulaire client
+    nom_client = st.text_input(
+        "Nom du client *", 
+        value=client_edition["nom"] if client_edition else "",
+        disabled=(choix_action == "Modifier un client existant")
     )
-    fiche = recuperer_fiche_client(client_sel)
-
-    if fiche:
-      griffe_actuelle = fiche.get("griffe") or ""
-      griffe_pos_actuelle = fiche.get("griffe_position_mm") or 15
-
-      with st.form("form_modif_client"):
-        mod_contact = st.text_input(
-            "Nom du contact référent", value=fiche.get("contact_nom", "")
+    
+    c_contact1, c_contact2 = st.columns(2)
+    with c_contact1:
+        telephone = st.text_input(
+            "Téléphone", 
+            value=client_edition.get("telephone", "") if client_edition and client_edition.get("telephone") else ""
         )
-        mod_adresse = st.text_area(
-            "Adresse complète", value=fiche.get("adresse", "")
+    with c_contact2:
+        email = st.text_input(
+            "E-mail", 
+            value=client_edition.get("email", "") if client_edition and client_edition.get("email") else ""
         )
-        mod_notes = st.text_area(
-            "Notes d'atelier", value=fiche.get("notes", "")
-        )
+    
+    st.write("---")
+    st.subheader("🏷️ Configuration par défaut de la Griffe")
+    
+    griffe = st.text_area(
+        "Texte de la griffe (ex: BIBLIOTHÈQUE / VILLE DE NEUVIC)", 
+        value=client_edition.get("griffe", "") if client_edition and client_edition.get("griffe") else "",
+        help="Laisse vide si le client n'a pas de griffe récurrente."
+    )
+    
+    griffe_pos_mm = st.number_input(
+        "Position par défaut depuis le bas (mm)", 
+        min_value=0, 
+        max_value=200, 
+        value=int(client_edition.get("griffe_position_mm", 15)) if client_edition and client_edition.get("griffe_position_mm") else 15,
+        step=1
+    )
 
-        st.write("---")
-        st.markdown("##### 🏷️ Option Griffe (Marquage fixe de bas de dos)")
-        activer_griffe_modif = st.checkbox(
-            "Activer la griffe pour ce client",
-            value=bool(griffe_actuelle.strip()),
-        )
-        mod_griffe = ""
-        mod_griffe_pos = griffe_pos_actuelle
+    st.write("---")
+    if st.button("💾 Enregistrer le client", type="primary", use_container_width=True):
+        if not nom_client.strip():
+            st.error("Le nom du client est obligatoire.")
+        else:
+            donnees_client = {
+                "nom": nom_client.strip(),
+                "telephone": telephone.strip(),
+                "email": email.strip(),
+                "griffe": griffe.strip(),
+                "griffe_position_mm": griffe_pos_mm
+            }
+            if enregistrer_ou_mettre_a_jour_client(donnees_client):
+                st.success(f"Client **{nom_client}** enregistré avec succès !")
+                st.rerun()
 
-        if activer_griffe_modif:
-          col_mg1, col_mg2 = st.columns([3, 1])
-          with col_mg1:
-            mod_griffe = st.text_area(
-                "Libellé de la griffe",
-                value=griffe_actuelle,
-                placeholder="Ex: E.N.S.",
-                height=90,
-            )
-          with col_mg2:
-            mod_griffe_pos = st.number_input(
-                "Position bas (mm)",
-                min_value=0,
-                max_value=200,
-                value=int(griffe_pos_actuelle),
-                step=1,
-            )
-
-        if st.form_submit_button("💾 Sauvegarder les modifications"):
-          enregistrer_client(
-              fiche["nom"],
-              mod_adresse,
-              mod_contact,
-              mod_notes,
-              mod_griffe.strip() if activer_griffe_modif else "",
-              mod_griffe_pos,
-          )
-          st.success("Fiche client mise à jour.")
-          st.rerun()
-
-      st.write("---")
-      st.markdown("#### 🚨 Zone de danger")
-
-      key_session_del = f"confirm_delete_{fiche['nom']}"
-      if key_session_del not in st.session_state:
-        st.session_state[key_session_del] = False
-
-      if not st.session_state[key_session_del]:
-        if st.button(
-            f"❌ Demander la suppression globale de {fiche['nom']}"
-        ):
-          st.session_state[key_session_del] = True
-          st.rerun()
-      else:
-        st.warning(
-            f"Confirmer la suppression définitive de {fiche['nom']} sur le"
-            " cloud ?"
-        )
-        col_del1, col_del2 = st.columns(2)
-        with col_del1:
-          if st.button("✔️ OUI, EFFACER TOUT"):
-            supprimer_client_globale(fiche["nom"])
-            st.session_state[key_session_del] = False
-            st.rerun()
-        with col_del2:
-          if st.button("🔄 Annuler"):
-            st.session_state[key_session_del] = False
-            st.rerun()
-  else:
-    st.info("Aucun client enregistré pour le moment dans la base.")
+with col2:
+    st.subheader("📋 Répertoire des Clients")
+    if clients_existants:
+        for c in clients_existants:
+            with st.expander(f"👤 **{c['nom']}**"):
+                st.write(f"📞 **Tél** : {c.get('telephone') or 'Non renseigné'}")
+                st.write(f"✉️ **E-mail** : {c.get('email') or 'Non renseigné'}")
+                st.write(f"🏷️ **Griffe** : {c.get('griffe') or 'Aucune'}")
+                st.write(f"📏 **Pos. Griffe** : {c.get('griffe_position_mm', 15)} mm")
+                
+                if st.button(f"🗑️ Supprimer {c['nom']}", key=f"del_{c['nom']}"):
+                    if supprimer_client(c["nom"]):
+                        st.success(f"Client {c['nom']} supprimé.")
+                        st.rerun()
+    else:
+        st.info("Aucun client dans la base de données.")

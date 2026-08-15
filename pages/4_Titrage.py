@@ -356,6 +356,70 @@ def generer_image_gabarit(
         pos_y = int(y - calque_agrandi.height / 2)
         img.paste(calque_agrandi, (pos_x, pos_y), calque_agrandi)
 
+    def mesurer_taille_vertical(texte, fnt):
+        """Calcule la taille (largeur, hauteur) qu'occupera `texte` une fois
+        rendu à l'horizontale puis pivoté à la verticale, sans le dessiner."""
+        if not texte:
+            return 0, 0
+        bbox = draw.textbbox((0, 0), texte, font=fnt)
+        largeur_txt = int(round(bbox[2] - bbox[0]))
+        hauteur_txt = int(round(bbox[3] - bbox[1]))
+        if largeur_txt <= 0 or hauteur_txt <= 0:
+            return 0, 0
+        marge = 6
+        largeur_calque = largeur_txt + marge * 2
+        hauteur_calque = hauteur_txt + marge * 2
+        if is_double:
+            largeur_calque *= FACTEUR_DOUBLE
+            hauteur_calque *= FACTEUR_DOUBLE
+        # après rotation -90°, largeur et hauteur du calque sont permutées
+        return hauteur_calque, largeur_calque
+
+    def tracer_texte_vertical(x_centre_colonne, y_centre, texte, fill_color, fnt):
+        """
+        Rend `texte` normalement à l'horizontale (une seule ligne), le fait
+        ensuite pivoter de -90° pour qu'il se lise de HAUT en BAS le long du
+        dos, puis le colle centré sur (x_centre_colonne, y_centre).
+        Respecte le mode 'Double' (agrandissement x2/x2) via FACTEUR_DOUBLE.
+        """
+        if not texte:
+            return
+
+        bbox = draw.textbbox((0, 0), texte, font=fnt)
+        largeur_txt = int(round(bbox[2] - bbox[0]))
+        hauteur_txt = int(round(bbox[3] - bbox[1]))
+        if largeur_txt <= 0 or hauteur_txt <= 0:
+            return
+
+        marge = 6
+        calque = Image.new(
+            "RGBA",
+            (largeur_txt + marge * 2, hauteur_txt + marge * 2),
+            (0, 0, 0, 0),
+        )
+        calque_draw = ImageDraw.Draw(calque)
+        calque_draw.text(
+            (marge - bbox[0], marge - bbox[1]),
+            texte,
+            fill=fill_color,
+            font=fnt,
+            anchor="la",
+        )
+
+        if is_double:
+            calque = calque.resize(
+                (calque.width * FACTEUR_DOUBLE, calque.height * FACTEUR_DOUBLE),
+                Image.LANCZOS,
+            )
+
+        # +90° : confirmé empiriquement en conditions réelles comme donnant
+        # une lecture haut vers bas le long du dos.
+        calque_pivote = calque.rotate(90, expand=True)
+
+        pos_x = int(x_centre_colonne - calque_pivote.width / 2)
+        pos_y = int(y_centre - calque_pivote.height / 2)
+        img.paste(calque_pivote, (pos_x, pos_y), calque_pivote)
+
     draw.line(
         [(w_regle_px, 20), (w_regle_px, 20 + h_dos_px)], fill="#cccccc", width=2
     )
@@ -409,34 +473,23 @@ def generer_image_gabarit(
                     lignes_p = [l.strip().upper() for l in txt_p.split("\n") if l.strip()]
 
                     if is_long:
-                        pas_px = 28 if is_double else 14
                         ecart_col_px = 32 if is_double else 16
                         nb_cols = len(lignes_p)
                         x_base_center = x_dos + (w_dos_px / 2)
+                        y_centre_zone = y_p_px + (h_p_px / 2)
+                        hauteur_zone_dispo = h_p_px - 12
 
                         for idx_col, ligne in enumerate(lignes_p):
                             offset_col = (idx_col - (nb_cols - 1) / 2) * ecart_col_px
                             x_col = x_base_center + offset_col
-                            y_start = y_p_px + 10
 
-                            hauteur_totale_texte = len(ligne) * pas_px
+                            _, hauteur_prevue = mesurer_taille_vertical(ligne, font)
                             couleur_piece_finale = (
-                                "#d9534f"
-                                if (y_start + hauteur_totale_texte) > (y_p_px + h_p_px)
-                                else txt_p_hex
+                                "#d9534f" if hauteur_prevue > hauteur_zone_dispo else txt_p_hex
                             )
-
-                            for idx_char, char in enumerate(ligne):
-                                if char != " ":
-                                    y_char = y_start + (idx_char * pas_px)
-                                    tracer_texte(
-                                        (x_col, y_char),
-                                        char,
-                                        couleur_piece_finale,
-                                        font,
-                                        "mm",
-                                        "center",
-                                    )
+                            tracer_texte_vertical(
+                                x_col, y_centre_zone, ligne, couleur_piece_finale, font,
+                            )
                     else:
                         txt_p_full = "\n".join(lignes_p)
                         bbox_p = draw.textbbox((0, 0), txt_p_full, font=font, align="center")
@@ -466,7 +519,6 @@ def generer_image_gabarit(
 
                 if is_long:
                     y_depart_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
-                    pas_lettre_px = 28 if is_double else 14
                     ecart_col_px = 32 if is_double else 16
                     nb_cols = len(lignes_txt)
 
@@ -474,23 +526,17 @@ def generer_image_gabarit(
                         offset_col = (idx_col - (nb_cols - 1) / 2) * ecart_col_px
                         x_col = x_center + offset_col
 
-                        y_fin_texte = y_depart_px + (len(ligne) * pas_lettre_px)
-                        is_debordement = (y_fin_texte > (y_dos + h_dos_px - 2)) or (
-                            y_depart_px < y_dos
+                        _, hauteur_prevue = mesurer_taille_vertical(ligne, font)
+                        is_debordement = (
+                            (y_depart_px + hauteur_prevue) > (y_dos + h_dos_px - 2)
+                            or (y_depart_px < y_dos)
                         )
                         couleur_ligne = "#d9534f" if is_debordement else c_marq_hex
 
-                        for idx_char, char in enumerate(ligne):
-                            if char != " ":
-                                y_lettre = y_depart_px + (idx_char * pas_lettre_px)
-                                tracer_texte(
-                                    (x_col, y_lettre),
-                                    char,
-                                    couleur_ligne,
-                                    font,
-                                    "mm",
-                                    "center",
-                                )
+                        y_centre = y_depart_px + (hauteur_prevue / 2)
+                        tracer_texte_vertical(
+                            x_col, y_centre, ligne, couleur_ligne, font,
+                        )
                 else:
                     y_l_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
                     txt_full = "\n".join(lignes_txt)

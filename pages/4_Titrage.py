@@ -289,8 +289,12 @@ def generer_image_gabarit(
     draw = ImageDraw.Draw(img)
 
     is_double = police_style == "Double"
-    taille_titre_pt = 24 if is_double else 12
-    stroke_w = 1 if is_double else 0
+    # Taille de police de base identique dans les deux modes : c'est le
+    # redimensionnement du glyphe rendu (voir tracer_texte) qui produit le
+    # doublement réel de largeur et de hauteur en mode "Double", pas un
+    # agrandissement de la fonte elle-même.
+    taille_titre_pt = 12
+    FACTEUR_DOUBLE = 2
 
     try:
         font = ImageFont.truetype("DejaVuSans-Bold.ttf", taille_titre_pt)
@@ -304,28 +308,53 @@ def generer_image_gabarit(
     px_par_mm = h_dos_px / haut_maquette
 
     def tracer_texte(pt, txt, fill_color, fnt, anc="mm", alg="center"):
-        draw.text(
-            pt,
+        """
+        Dessine le texte à la position pt (ancrage centré 'mm' par défaut).
+        En mode 'Double', le texte est d'abord rendu sur un calque à part,
+        puis explicitement redimensionné x2 en largeur ET x2 en hauteur
+        avant d'être collé sur l'image finale, pour un vrai agrandissement
+        (et non un effet de gras approximatif).
+        """
+        if not is_double:
+            draw.text(
+                pt, txt, fill=fill_color, font=fnt, anchor=anc, align=alg,
+            )
+            return
+
+        # Mesure du texte pour dimensionner le calque temporaire.
+        bbox = draw.textbbox((0, 0), txt, font=fnt, align=alg)
+        largeur_txt = bbox[2] - bbox[0]
+        hauteur_txt = bbox[3] - bbox[1]
+        if largeur_txt <= 0 or hauteur_txt <= 0:
+            return
+
+        marge = 6
+        calque = Image.new(
+            "RGBA",
+            (largeur_txt + marge * 2, hauteur_txt + marge * 2),
+            (0, 0, 0, 0),
+        )
+        calque_draw = ImageDraw.Draw(calque)
+        calque_draw.text(
+            (marge - bbox[0], marge - bbox[1]),
             txt,
             fill=fill_color,
             font=fnt,
-            anchor=anc,
+            anchor="la",
             align=alg,
-            stroke_width=stroke_w,
-            stroke_fill=fill_color,
         )
-        if is_double:
-            x, y = pt
-            draw.text(
-                (x + 1, y + 1),
-                txt,
-                fill=fill_color,
-                font=fnt,
-                anchor=anc,
-                align=alg,
-                stroke_width=stroke_w,
-                stroke_fill=fill_color,
-            )
+
+        calque_agrandi = calque.resize(
+            (calque.width * FACTEUR_DOUBLE, calque.height * FACTEUR_DOUBLE),
+            Image.LANCZOS,
+        )
+
+        # Recalcul du point de collage selon l'ancrage demandé (on ne gère
+        # explicitement que l'ancrage centré 'mm', utilisé partout ici).
+        x, y = pt
+        pos_x = int(x - calque_agrandi.width / 2)
+        pos_y = int(y - calque_agrandi.height / 2)
+        img.paste(calque_agrandi, (pos_x, pos_y), calque_agrandi)
 
     draw.line(
         [(w_regle_px, 20), (w_regle_px, 20 + h_dos_px)], fill="#cccccc", width=2
@@ -380,8 +409,8 @@ def generer_image_gabarit(
                     lignes_p = [l.strip().upper() for l in txt_p.split("\n") if l.strip()]
 
                     if is_long:
-                        pas_px = 22 if is_double else 14
-                        ecart_col_px = 24 if is_double else 16
+                        pas_px = 28 if is_double else 14
+                        ecart_col_px = 32 if is_double else 16
                         nb_cols = len(lignes_p)
                         x_base_center = x_dos + (w_dos_px / 2)
 
@@ -437,8 +466,8 @@ def generer_image_gabarit(
 
                 if is_long:
                     y_depart_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
-                    pas_lettre_px = 22 if is_double else 14
-                    ecart_col_px = 24 if is_double else 16
+                    pas_lettre_px = 28 if is_double else 14
+                    ecart_col_px = 32 if is_double else 16
                     nb_cols = len(lignes_txt)
 
                     for idx_col, ligne in enumerate(lignes_txt):

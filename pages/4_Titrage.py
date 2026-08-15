@@ -58,7 +58,8 @@ def recuperer_griffe_client(nom_client):
         if reponse.data:
             r = reponse.data[0]
             txt = (r.get("griffe") or "").strip()
-            pos_mm = r.get("griffe_position_mm") or 15
+            pos_mm = r.get("griffe_position_mm")
+            pos_mm = pos_mm if pos_mm is not None else 15
             return txt, pos_mm
     except Exception:
         pass
@@ -116,6 +117,12 @@ def charger_couleurs_par_toile_supabase(type_toile):
 
 
 def recuperer_specs_livre(client, train, num_livre):
+    """
+    NOTE IMPORTANTE : on lit désormais la colonne 'titrage_sens' (et non plus
+    'sens_titrage') pour rester cohérent avec 1_Saisie_Fiche.py et
+    5_Impression_Garde.py. On lit aussi 'hauteur_maquette', désormais
+    persistée par ce module.
+    """
     supabase = obtenir_client_supabase()
     num_livre_int = int(num_livre)
 
@@ -123,9 +130,9 @@ def recuperer_specs_livre(client, train, num_livre):
         reponse = (
             supabase.table("fiches_livres")
             .select(
-                "largeur, hauteur, epaisseur, type_toile, couleur, titrage_couleur,"
-                " cocher_piece_titre, couleur_pieces_toile, marquage_pieces,"
-                " nombre_pieces_titre, sens_titrage, police_style"
+                "largeur, hauteur, hauteur_maquette, epaisseur, type_toile, couleur,"
+                " titrage_couleur, cocher_piece_titre, couleur_pieces_toile,"
+                " marquage_pieces, nombre_pieces_titre, titrage_sens, police_style"
             )
             .eq("nom_client", str(client).strip())
             .eq("numero_train", str(train).strip())
@@ -135,8 +142,9 @@ def recuperer_specs_livre(client, train, num_livre):
 
         if reponse.data:
             r = reponse.data[0]
+            hauteur_livre = r.get("hauteur") or 220
             return (
-                r.get("hauteur") or 220,
+                hauteur_livre,
                 r.get("largeur") or 160,
                 r.get("epaisseur") or 20,
                 r.get("type_toile") or "Buckram",
@@ -146,13 +154,14 @@ def recuperer_specs_livre(client, train, num_livre):
                 r.get("couleur_pieces_toile") or "Rouge",
                 r.get("marquage_pieces") or "OR",
                 r.get("nombre_pieces_titre") or 1,
-                r.get("sens_titrage") or "Classique",
+                r.get("titrage_sens") or "Classique",
                 r.get("police_style") or "Simple",
+                r.get("hauteur_maquette") or (hauteur_livre + 5),
             )
     except Exception:
         pass
 
-    return 220, 160, 20, "Buckram", "Noir", "OR", False, "Rouge", "OR", 1, "Classique", "Simple"
+    return 220, 160, 20, "Buckram", "Noir", "OR", False, "Rouge", "OR", 1, "Classique", "Simple", 225
 
 
 def recuperer_titrage_enregistre(client, train, num_livre):
@@ -188,6 +197,12 @@ def recuperer_titrage_enregistre(client, train, num_livre):
 def sauvegarder_titrage_sur_base(
     client, train, num_livre, date_saisie, df_lignes, df_pieces, specs_modifiees
 ):
+    """
+    Utilise désormais un upsert avec on_conflict au lieu d'un check-then-insert,
+    pour éviter les doublons en cas de double-clic ou de rechargement concurrent.
+    Nécessite une contrainte unique côté Supabase sur
+    (nom_client, numero_train, numero_livre) dans la table titrage_system3.
+    """
     supabase = obtenir_client_supabase()
 
     num_livre_int = int(num_livre)
@@ -210,25 +225,10 @@ def sauvegarder_titrage_sur_base(
     }
 
     try:
-        check = (
-            supabase.table("titrage_system3")
-            .select("numero_livre")
-            .eq("nom_client", str(client).strip())
-            .eq("numero_train", str(train).strip())
-            .eq("numero_livre", num_livre_int)
-            .execute()
-        )
-        if check.data:
-            (
-                supabase.table("titrage_system3")
-                .update(donnees_titrage)
-                .eq("nom_client", str(client).strip())
-                .eq("numero_train", str(train).strip())
-                .eq("numero_livre", num_livre_int)
-                .execute()
-            )
-        else:
-            supabase.table("titrage_system3").insert(donnees_titrage).execute()
+        supabase.table("titrage_system3").upsert(
+            donnees_titrage,
+            on_conflict="nom_client,numero_train,numero_livre",
+        ).execute()
 
         (
             supabase.table("fiches_livres")
@@ -574,6 +574,7 @@ else:
                         init_nb_pieces,
                         init_sens_titrage,
                         init_police_style,
+                        init_haut_maquette,
                     ) = recuperer_specs_livre(t3_client, t3_train_sel, t3_livre_num)
                     livre_charge_valide = True
             else:
@@ -586,12 +587,23 @@ else:
         with col_form_saisie:
             st.write("---")
             st.subheader("📐 Caractéristiques modifiables du livre & du dos")
+            st.caption(
+                "ℹ️ La hauteur du livre est fixée depuis la fiche de saisie et n'est "
+                "plus modifiable ici. Seule la hauteur de la maquette (gabarit visuel) "
+                "peut être ajustée."
+            )
 
             c_dim1, c_dim2, c_dim3, c_dim4 = st.columns(4)
             with c_dim1:
-                t3_haut_titre = st.number_input("Hauteur du titre (mm)", min_value=10, max_value=1000, value=int(init_haut), step=1)
+                st.metric("Hauteur du livre (mm)", int(init_haut))
             with c_dim2:
-                t3_haut_maquette = st.number_input("Hauteur maquette (mm)", min_value=10, max_value=1000, value=int(init_haut + 5), step=1)
+                t3_haut_maquette = st.number_input(
+                    "Hauteur maquette (mm)",
+                    min_value=10, max_value=1000,
+                    value=int(init_haut_maquette),
+                    step=1,
+                    help="Hauteur du gabarit visuel utilisé pour positionner le titrage. N'affecte pas la hauteur officielle du livre.",
+                )
             with c_dim3:
                 t3_larg_dos_utile = st.number_input("Largeur utile du dos (mm)", min_value=5, max_value=500, value=int(init_ep + 10), step=1)
             with c_dim4:
@@ -708,7 +720,9 @@ else:
                 )
 
                 specs_mises_a_jour = {
-                    "hauteur": t3_haut_titre,
+                    # 'hauteur' du livre volontairement absente : elle appartient à
+                    # la fiche de saisie (1_Saisie_Fiche.py) et n'est plus modifiable ici.
+                    "hauteur_maquette": t3_haut_maquette,
                     "largeur": init_larg,
                     "epaisseur": max(t3_larg_dos_utile - 10, 0),
                     "type_toile": t3_type_toile,
@@ -718,7 +732,7 @@ else:
                     "couleur_pieces_toile": c_piece,
                     "marquage_pieces": m_piece,
                     "nombre_pieces_titre": (len(df_pieces_edite) if df_pieces_edite is not None else 0),
-                    "sens_titrage": t3_sens_titrage,
+                    "titrage_sens": t3_sens_titrage,
                     "police_style": t3_police_style,
                 }
 

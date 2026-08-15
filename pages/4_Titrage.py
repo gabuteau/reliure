@@ -323,8 +323,8 @@ def generer_image_gabarit(
 
         # Mesure du texte pour dimensionner le calque temporaire.
         bbox = draw.textbbox((0, 0), txt, font=fnt, align=alg)
-        largeur_txt = bbox[2] - bbox[0]
-        hauteur_txt = bbox[3] - bbox[1]
+        largeur_txt = int(round(bbox[2] - bbox[0]))
+        hauteur_txt = int(round(bbox[3] - bbox[1]))
         if largeur_txt <= 0 or hauteur_txt <= 0:
             return
 

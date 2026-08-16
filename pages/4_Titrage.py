@@ -117,12 +117,6 @@ def charger_couleurs_par_toile_supabase(type_toile):
 
 
 def recuperer_specs_livre(client, train, num_livre):
-    """
-    NOTE IMPORTANTE : on lit désormais la colonne 'titrage_sens' (et non plus
-    'sens_titrage') pour rester cohérent avec 1_Saisie_Fiche.py et
-    5_Impression_Garde.py. On lit aussi 'hauteur_maquette', désormais
-    persistée par ce module.
-    """
     supabase = obtenir_client_supabase()
     num_livre_int = int(num_livre)
 
@@ -197,12 +191,6 @@ def recuperer_titrage_enregistre(client, train, num_livre):
 def sauvegarder_titrage_sur_base(
     client, train, num_livre, date_saisie, df_lignes, df_pieces, specs_modifiees
 ):
-    """
-    Utilise désormais un upsert avec on_conflict au lieu d'un check-then-insert,
-    pour éviter les doublons en cas de double-clic ou de rechargement concurrent.
-    Nécessite une contrainte unique côté Supabase sur
-    (nom_client, numero_train, numero_livre) dans la table titrage_system3.
-    """
     supabase = obtenir_client_supabase()
 
     num_livre_int = int(num_livre)
@@ -289,10 +277,6 @@ def generer_image_gabarit(
     draw = ImageDraw.Draw(img)
 
     is_double = police_style == "Double"
-    # Taille de police de base identique dans les deux modes : c'est le
-    # redimensionnement du glyphe rendu (voir tracer_texte) qui produit le
-    # doublement réel de largeur et de hauteur en mode "Double", pas un
-    # agrandissement de la fonte elle-même.
     taille_titre_pt = 12
     FACTEUR_DOUBLE = 2
 
@@ -308,20 +292,12 @@ def generer_image_gabarit(
     px_par_mm = h_dos_px / haut_maquette
 
     def tracer_texte(pt, txt, fill_color, fnt, anc="mm", alg="center"):
-        """
-        Dessine le texte à la position pt (ancrage centré 'mm' par défaut).
-        En mode 'Double', le texte est d'abord rendu sur un calque à part,
-        puis explicitement redimensionné x2 en largeur ET x2 en hauteur
-        avant d'être collé sur l'image finale, pour un vrai agrandissement
-        (et non un effet de gras approximatif).
-        """
         if not is_double:
             draw.text(
                 pt, txt, fill=fill_color, font=fnt, anchor=anc, align=alg,
             )
             return
 
-        # Mesure du texte pour dimensionner le calque temporaire.
         bbox = draw.textbbox((0, 0), txt, font=fnt, align=alg)
         largeur_txt = int(round(bbox[2] - bbox[0]))
         hauteur_txt = int(round(bbox[3] - bbox[1]))
@@ -349,16 +325,12 @@ def generer_image_gabarit(
             Image.LANCZOS,
         )
 
-        # Recalcul du point de collage selon l'ancrage demandé (on ne gère
-        # explicitement que l'ancrage centré 'mm', utilisé partout ici).
         x, y = pt
         pos_x = int(x - calque_agrandi.width / 2)
         pos_y = int(y - calque_agrandi.height / 2)
         img.paste(calque_agrandi, (pos_x, pos_y), calque_agrandi)
 
     def mesurer_taille_vertical(texte, fnt):
-        """Calcule la taille (largeur, hauteur) qu'occupera `texte` une fois
-        rendu à l'horizontale puis pivoté à la verticale, sans le dessiner."""
         if not texte:
             return 0, 0
         bbox = draw.textbbox((0, 0), texte, font=fnt)
@@ -372,16 +344,9 @@ def generer_image_gabarit(
         if is_double:
             largeur_calque *= FACTEUR_DOUBLE
             hauteur_calque *= FACTEUR_DOUBLE
-        # après rotation -90°, largeur et hauteur du calque sont permutées
         return hauteur_calque, largeur_calque
 
     def tracer_texte_vertical(x_centre_colonne, y_centre, texte, fill_color, fnt):
-        """
-        Rend `texte` normalement à l'horizontale (une seule ligne), le fait
-        ensuite pivoter de -90° pour qu'il se lise de HAUT en BAS le long du
-        dos, puis le colle centré sur (x_centre_colonne, y_centre).
-        Respecte le mode 'Double' (agrandissement x2/x2) via FACTEUR_DOUBLE.
-        """
         if not texte:
             return
 
@@ -412,14 +377,13 @@ def generer_image_gabarit(
                 Image.LANCZOS,
             )
 
-        # +90° : confirmé empiriquement en conditions réelles comme donnant
-        # une lecture haut vers bas le long du dos.
         calque_pivote = calque.rotate(90, expand=True)
 
         pos_x = int(x_centre_colonne - calque_pivote.width / 2)
         pos_y = int(y_centre - calque_pivote.height / 2)
         img.paste(calque_pivote, (pos_x, pos_y), calque_pivote)
 
+    # Dessin de la règle
     draw.line(
         [(w_regle_px, 20), (w_regle_px, 20 + h_dos_px)], fill="#cccccc", width=2
     )
@@ -438,6 +402,7 @@ def generer_image_gabarit(
             (w_regle_px - 50, y_mm - 6), txt_mm, fill="#555555", font=font_small
         )
 
+    # Rectangle du dos
     x_dos = w_regle_px + 15
     y_dos = 20
     draw.rectangle(
@@ -447,6 +412,7 @@ def generer_image_gabarit(
         width=2,
     )
 
+    # Pièces de titre
     if has_pieces and df_pieces is not None and not df_pieces.empty:
         for _, row_p in df_pieces.iterrows():
             pos_p_mm = row_p["Position (mm depuis le bas)"]
@@ -487,6 +453,7 @@ def generer_image_gabarit(
                             couleur_piece_finale = (
                                 "#d9534f" if hauteur_prevue > hauteur_zone_dispo else txt_p_hex
                             )
+                            # Centré sur le milieu vertical de la pièce
                             tracer_texte_vertical(
                                 x_col, y_centre_zone, ligne, couleur_piece_finale, font,
                             )
@@ -508,6 +475,7 @@ def generer_image_gabarit(
                             "center",
                         )
 
+    # Lignes directes sur le dos
     if df_lignes is not None and not df_lignes.empty:
         for _, row_l in df_lignes.iterrows():
             mm_pos = row_l["Hauteur du titre (mm)"]
@@ -518,7 +486,7 @@ def generer_image_gabarit(
                 lignes_txt = [l.strip().upper() for l in txt.split("\n") if l.strip()]
 
                 if is_long:
-                    y_depart_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
+                    y_repere_centre_px = y_dos + h_dos_px - (float(mm_pos) * px_par_mm)
                     ecart_col_px = 32 if is_double else 16
                     nb_cols = len(lignes_txt)
 
@@ -527,13 +495,15 @@ def generer_image_gabarit(
                         x_col = x_center + offset_col
 
                         _, hauteur_prevue = mesurer_taille_vertical(ligne, font)
+                        # Le centre vertical de chaque ligne coïncide avec le point de repère choisi
+                        y_centre = y_repere_centre_px
+                        
                         is_debordement = (
-                            (y_depart_px + hauteur_prevue) > (y_dos + h_dos_px - 2)
-                            or (y_depart_px < y_dos)
+                            (y_centre + (hauteur_prevue / 2)) > (y_dos + h_dos_px - 2)
+                            or (y_centre - (hauteur_prevue / 2)) < y_dos
                         )
                         couleur_ligne = "#d9534f" if is_debordement else c_marq_hex
 
-                        y_centre = y_depart_px + (hauteur_prevue / 2)
                         tracer_texte_vertical(
                             x_col, y_centre, ligne, couleur_ligne, font,
                         )
@@ -555,6 +525,7 @@ def generer_image_gabarit(
                         "center",
                     )
 
+    # Griffe client
     if griffe_texte:
         x_center = x_dos + (w_dos_px / 2)
         chars_max_par_ligne = max(int((w_dos_px - 8) / 7), 1)
@@ -795,8 +766,6 @@ else:
                 )
 
                 specs_mises_a_jour = {
-                    # 'hauteur' du livre volontairement absente : elle appartient à
-                    # la fiche de saisie (1_Saisie_Fiche.py) et n'est plus modifiable ici.
                     "hauteur_maquette": t3_haut_maquette,
                     "largeur": init_larg,
                     "epaisseur": max(t3_larg_dos_utile - 10, 0),

@@ -117,7 +117,7 @@ def charger_couleurs_par_toile_supabase(type_toile_selectionne):
         return liste_couleurs_generique
 
 
-# --- PARSEUR ET DÉCODEUR SYSTEM 3 (.S3T) ---
+# --- PARSEUR ET DÉCODEUR SYSTEM 3 (.S3T) CORRIGÉ ---
 def decoder_texte_system3(texte):
     """Convertit les codes d'échappement System3 en texte français lisible."""
     if not texte:
@@ -138,7 +138,7 @@ def decoder_texte_system3(texte):
     return t.strip()
 
 def parser_fichier_system3(contenu_texte):
-    """Parse l'intégralité d'un fichier .S3T et extrait les caractéristiques des pièces."""
+    """Parse l'intégralité d'un fichier .S3T et extrait fidèlement les hauteurs/positions de chaque ligne."""
     lignes = [l.rstrip("\r\n") for l in contenu_texte.split("\n") if l.strip()]
     if not lignes:
         return []
@@ -179,7 +179,7 @@ def parser_fichier_system3(contenu_texte):
         except Exception:
             hauteur = 220.0
 
-        is_long = ("UCC" in bloc[1]) if len(bloc) > 1 else (epaisseur <= 20.0)
+        is_long = any(l.startswith("UCC") or l.startswith("ULL") for l in bloc) or (epaisseur <= 20.0)
 
         # Détection pièces de titre
         cocher_pt = "P." in consigne_atelier.upper() or "PIECE" in consigne_atelier.upper()
@@ -190,22 +190,45 @@ def parser_fichier_system3(contenu_texte):
         elif "VERT" in consigne_atelier.upper() or "VF" in consigne_atelier.upper(): couleur_pt = "Vert"
         elif "MARRON" in consigne_atelier.upper() or "MF" in consigne_atelier.upper(): couleur_pt = "Marron"
 
-        # Extraction titrage
+        # Extraction exacte des lignes de titrage et de leur hauteur Y
         lignes_titrage = []
         for l in bloc[1:]:
-            if l.startswith("UCC") or l.startswith("ULL") or l.strip().startswith("1") or l.strip().startswith("2"):
-                texte_brut = l[15:].strip() if len(l) > 15 else l[2:].strip()
+            # Cas A : Lignes continues UCC / ULL
+            if l.startswith("UCC") or l.startswith("ULL"):
+                texte_brut = l[15:].strip()
                 if texte_brut and texte_brut != ".":
                     lignes_titrage.append({
-                        "Hauteur du titre (mm)": int(hauteur * 0.5),
+                        "Hauteur du titre (mm)": int(hauteur * 0.70),
                         "Titrage": decoder_texte_system3(texte_brut)
                     })
-            elif len(l) >= 15:
-                pos_str = l[11:15].strip()
-                texte_brut = l[15:].strip()
-                if pos_str.isdigit() and texte_brut:
+            elif l.strip().startswith("1") or l.strip().startswith("2") or l.strip().startswith("3"):
+                match_num_ligne = re.match(r"^\s*([1-9])\s*(.*)$", l)
+                if match_num_ligne:
+                    idx_l = int(match_num_ligne.group(1))
+                    txt_b = match_num_ligne.group(2).strip()
+                    if txt_b and txt_b != ".":
+                        lignes_titrage.append({
+                            "Hauteur du titre (mm)": int(hauteur * 0.70) - ((idx_l - 1) * 15),
+                            "Titrage": decoder_texte_system3(txt_b)
+                        })
+
+            # Cas B : Lignes standard HCC avec position Y explicite
+            else:
+                if l.startswith("HCC"):
+                    segment_pos = l[10:15]
+                    texte_brut = l[15:].strip()
+                else:
+                    segment_pos = l[:15]
+                    texte_brut = l[15:].strip()
+
+                match_pos = re.search(r"(\d{2,4})", segment_pos)
+                if match_pos and texte_brut:
+                    val_y = int(match_pos.group(1))
+                    if val_y > 1000:
+                        val_y = val_y % 1000
+                    
                     lignes_titrage.append({
-                        "Hauteur du titre (mm)": int(pos_str),
+                        "Hauteur du titre (mm)": val_y,
                         "Titrage": decoder_texte_system3(texte_brut)
                     })
 
@@ -271,7 +294,7 @@ else:
             liste_trains_existants = lister_les_trains_du_client(nom_client_valide)
             prochain_train_auto = generer_automatiquement_numero_train(nom_client_valide)
 
-            # --- ZONE D'IMPORTATION PLACÉE IMMÉDIATEMENT APRÈS LE CLIENT ---
+            # --- ZONE D'IMPORTATION PLACÉE DIRECTEMENT APRÈS LE CLIENT ---
             with st.expander("📥 Importer un fichier System3 (.S3T) pour ce client", expanded=False):
                 st.caption(f"Charge un lot complet de livres et préremplit leurs titrages pour **{nom_client_valide}**.")
                 fichier_uploade = st.file_uploader("Sélectionner un fichier .S3T", type=["s3t", "txt"], key=f"upload_s3t_{nom_client_valide}")
@@ -355,7 +378,6 @@ else:
             # Étape 2 : Sélection du train
             options_train = ["-- Choisir un train --", "[+] Créer un nouveau train automatiquement"] + liste_trains_existants
             
-            # Gestion de la présélection automatique si on vient d'importer
             index_defaut_train = 0
             if "train_selectionne_apres_import" in st.session_state and st.session_state["train_selectionne_apres_import"] in options_train:
                 index_defaut_train = options_train.index(st.session_state["train_selectionne_apres_import"])

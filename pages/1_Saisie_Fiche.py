@@ -94,7 +94,6 @@ def enregistrer_ou_mettre_a_jour_livre(donnees):
     supabase = obtenir_client_supabase()
     supabase.table("fiches_livres").upsert(donnees).execute()
 
-# --- GESTION DU RÉFÉRENTIEL TOILES & COULEURS ---
 def charger_types_toile_supabase():
     supabase = obtenir_client_supabase()
     try:
@@ -182,7 +181,7 @@ def parser_fichier_system3(contenu_texte):
 
         is_long = ("UCC" in bloc[1]) if len(bloc) > 1 else (epaisseur <= 20.0)
 
-        # Détection pièces de titre depuis la consigne atelier
+        # Détection pièces de titre
         cocher_pt = "P." in consigne_atelier.upper() or "PIECE" in consigne_atelier.upper()
         couleur_pt = "Rouge"
         if "NOIR" in consigne_atelier.upper(): couleur_pt = "Noir"
@@ -191,7 +190,7 @@ def parser_fichier_system3(contenu_texte):
         elif "VERT" in consigne_atelier.upper() or "VF" in consigne_atelier.upper(): couleur_pt = "Vert"
         elif "MARRON" in consigne_atelier.upper() or "MF" in consigne_atelier.upper(): couleur_pt = "Marron"
 
-        # Extraction des lignes de titrage
+        # Extraction titrage
         lignes_titrage = []
         for l in bloc[1:]:
             if l.startswith("UCC") or l.startswith("ULL") or l.strip().startswith("1") or l.strip().startswith("2"):
@@ -263,52 +262,42 @@ else:
     
     with col_saisie:
         st.subheader("Clé d'identification du Train")
-        c_tr1, c_tr2 = st.columns(2)
-        with c_tr1:
-            nom_client_valide = st.selectbox("1. Sélectionner le client", options=["-- Choisir un client --"] + liste_clients_existants)
+        nom_client_valide = st.selectbox("1. Sélectionner le client", options=["-- Choisir un client --"] + liste_clients_existants)
         
         if nom_client_valide == "-- Choisir un client --":
             st.info("💡 Sélectionnez un client pour afficher ou créer un train de livres.")
             train_charge_valide = False
         else:
             liste_trains_existants = lister_les_trains_du_client(nom_client_valide)
-            options_train = ["-- Choisir un train --", "[+] Créer un nouveau train automatiquement"] + liste_trains_existants
-            
-            with c_tr2:
-                train_selectionne = st.selectbox("2. Sélectionner le n° de train", options=options_train)
-            
-            if train_selectionne == "-- Choisir un train --":
-                st.info("💡 Sélectionnez un numéro de train existant ou demandez une création automatique.")
-                train_charge_valide = False
-            else:
-                train_charge_valide = True
-                if train_selectionne == "[+] Créer un nouveau train automatiquement":
-                    numero_train = generer_automatiquement_numero_train(nom_client_valide)
-                else:
-                    numero_train = train_selectionne
+            prochain_train_auto = generer_automatiquement_numero_train(nom_client_valide)
 
-    if train_charge_valide:
-        with col_saisie:
-            # --- SECTION IMPORTATION DIRECTE DE FICHIER MACHINE (.S3T) ---
-            with st.expander("📥 Importer un lot complet depuis un fichier machine (.S3T)", expanded=False):
-                st.caption("Permet de générer et d'enregistrer automatiquement toutes les fiches de livres et leurs titrages à partir d'un fichier System3 existant.")
-                fichier_uploade = st.file_uploader("Sélectionner un fichier .S3T", type=["s3t", "txt"])
+            # --- ZONE D'IMPORTATION PLACÉE IMMÉDIATEMENT APRÈS LE CLIENT ---
+            with st.expander("📥 Importer un fichier System3 (.S3T) pour ce client", expanded=False):
+                st.caption(f"Charge un lot complet de livres et préremplit leurs titrages pour **{nom_client_valide}**.")
+                fichier_uploade = st.file_uploader("Sélectionner un fichier .S3T", type=["s3t", "txt"], key=f"upload_s3t_{nom_client_valide}")
                 
                 if fichier_uploade is not None:
                     contenu_str = fichier_uploade.getvalue().decode("latin-1", errors="replace")
                     livres_importes = parser_fichier_system3(contenu_str)
                     
                     if livres_importes:
-                        st.success(f"🔍 {len(livres_importes)} livre(s) prêt(s) à être importé(s) dans le Train **{numero_train}**.")
+                        st.info(f"🔍 **{len(livres_importes)} livre(s)** détecté(s) dans le fichier.")
                         
-                        if st.button(f"⚡ Importer et créer les {len(livres_importes)} fiches maintenant", type="primary", use_container_width=True):
+                        train_cible_import = st.selectbox(
+                            "Affecter ces livres au Train :",
+                            options=[f"[+] Nouveau Train : {prochain_train_auto}"] + liste_trains_existants,
+                            key="sel_train_cible_import"
+                        )
+                        num_train_final = prochain_train_auto if train_cible_import.startswith("[+]") else train_cible_import
+                        
+                        if st.button(f"⚡ Valider l'importation vers {num_train_final}", type="primary", use_container_width=True):
                             supabase = obtenir_client_supabase()
                             for l_imp in livres_importes:
                                 n_livre = l_imp["sequence"]
                                 
                                 donnees_fiche_imp = {
                                     "nom_client": nom_client_valide.strip(),
-                                    "numero_train": numero_train.strip(),
+                                    "numero_train": num_train_final.strip(),
                                     "numero_livre": n_livre,
                                     "nature_doc": "Périodique (Pério)",
                                     "text_doc": "Neuf",
@@ -344,11 +333,10 @@ else:
                                 }
                                 enregistrer_ou_mettre_a_jour_livre(donnees_fiche_imp)
                                 
-                                # Enregistrement du titrage associé
                                 json_lignes = json.dumps(l_imp["df_lignes"].to_dict(orient="records"), ensure_ascii=False)
                                 donnees_titrage_imp = {
                                     "nom_client": nom_client_valide.strip(),
-                                    "numero_train": numero_train.strip(),
+                                    "numero_train": num_train_final.strip(),
                                     "numero_livre": n_livre,
                                     "date_saisie": str(datetime.now().date()),
                                     "lignes_json": json_lignes,
@@ -359,9 +347,34 @@ else:
                                     on_conflict="nom_client,numero_train,numero_livre"
                                 ).execute()
                                 
-                            st.success(f"🎉 Importation réussie ! {len(livres_importes)} livres et leurs compositions de titrage ont été enregistrés.")
+                            st.success(f"🎉 Importation terminée ! {len(livres_importes)} fiches créées dans le train {num_train_final}.")
+                            st.session_state["train_selectionne_apres_import"] = num_train_final
                             st.rerun()
 
+            st.write("---")
+            # Étape 2 : Sélection du train
+            options_train = ["-- Choisir un train --", "[+] Créer un nouveau train automatiquement"] + liste_trains_existants
+            
+            # Gestion de la présélection automatique si on vient d'importer
+            index_defaut_train = 0
+            if "train_selectionne_apres_import" in st.session_state and st.session_state["train_selectionne_apres_import"] in options_train:
+                index_defaut_train = options_train.index(st.session_state["train_selectionne_apres_import"])
+                del st.session_state["train_selectionne_apres_import"]
+
+            train_selectionne = st.selectbox("2. Sélectionner le n° de train", options=options_train, index=index_defaut_train)
+            
+            if train_selectionne == "-- Choisir un train --":
+                st.info("💡 Sélectionnez un numéro de train existant ou demandez une création automatique.")
+                train_charge_valide = False
+            else:
+                train_charge_valide = True
+                if train_selectionne == "[+] Créer un nouveau train automatiquement":
+                    numero_train = prochain_train_auto
+                else:
+                    numero_train = train_selectionne
+
+    if train_charge_valide:
+        with col_saisie:
             st.write("---")
             st.header(f"📋 Saisie de la fiche — Train : {numero_train}")
             

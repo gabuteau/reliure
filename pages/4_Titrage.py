@@ -1,5 +1,6 @@
 import io
 import json
+import re
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import pandas as pd
@@ -11,21 +12,48 @@ from supabase import create_client
 # 1. MOTEUR DE CONVERSION & EXPORT SYSTEM 3
 # ==============================================================================
 
-def formater_texte_system3(texte):
-    """Convertit les caractères français/spéciaux vers la table de la System3."""
+# Table de correspondance canonique System3
+TABLE_ACCENTS_EXPORT = [
+    ("É", "\\Af"), ("È", "\\Ae"), ("Ê", "\\Ag"), ("Ë", "\\Aj"),
+    ("À", "\\Aa"), ("Â", "\\Ac"), ("Ä", "\\Ad"),
+    ("Ç", "\\Am"),
+    ("Î", "\\Au"), ("Ï", "\\Al"),
+    ("Ô", "\\At"), ("Ö", "\\Az"),
+    ("Ù", "\\Ax"), ("Û", "\\Aw"), ("Ü", "\\Ax"),
+    ("°", "]"), ("N°", "N]")
+]
+
+TABLE_ACCENTS_IMPORT = [
+    ("\\Af", "É"), ("\\Ae", "È"), ("\\Ag", "Ê"), ("\\Aj", "Ë"),
+    ("\\Aa", "À"), ("\\Ac", "Â"), ("\\Ad", "Ä"),
+    ("\\Am", "Ç"),
+    ("\\Au", "Î"), ("\\Al", "Ï"),
+    ("\\At", "Ô"), ("\\Az", "Ö"),
+    ("\\Ax", "Ù"), ("\\Aw", "Û"),
+    ("]", "°")
+]
+
+
+def decoder_texte_system3(texte):
+    """Convertit les codes d'échappement System3 en texte français lisible."""
     if not texte:
         return ""
-    t = str(texte).strip().upper()
-    remplacements = {
-        "É": "\\Af", "È": "\\Ae", "Ê": "\\Ag", "Ë": "\\Aj",
-        "À": "\\Aa", "Â": "\\Ac", "Ä": "\\Ad",
-        "Ç": "\\Am",
-        "Î": "\\Au", "Ï": "\\Al",
-        "Ô": "\\At", "Ö": "\\Az",
-        "Ù": "\\Ax", "Û": "\\Aw", "Ü": "\\Ax",
-        "°": "]", "N°": "N]"
-    }
-    for char, code in remplacements.items():
+    t = str(texte)
+    for code, char in TABLE_ACCENTS_IMPORT:
+        t = t.replace(code, char)
+    # Nettoyage des balises de polices et micro-espacements
+    t = re.sub(r"\\F[0-9]", "", t)
+    t = re.sub(r"\\S[0-9]{3}", "", t)
+    return t.strip()
+
+
+def formater_texte_system3(texte):
+    """Nettoie et convertit le texte vers les codes d'échappement System3."""
+    if not texte:
+        return ""
+    # D'abord décoder au cas où la chaîne contienne déjà des codes d'échappement
+    t = decoder_texte_system3(str(texte)).upper().strip()
+    for char, code in TABLE_ACCENTS_EXPORT:
         t = t.replace(char, code)
     return t
 
@@ -48,10 +76,8 @@ def generer_bloc_livre_system3(
     couleur_piece=""
 ):
     """Génère le bloc d'instructions machine pour une pièce."""
-    # Trigramme / code client cadré sur 10 caractères
     code_client = (str(nom_client)[:10]).upper().ljust(10)
 
-    # Cartouche matière et consignes atelier
     if is_plat_couv:
         epaisseur_str = "99.0B"
         consigne = f"1{type_toile.upper()[:10]} - TITRAGE 1ERE COUV"
@@ -68,7 +94,6 @@ def generer_bloc_livre_system3(
 
     ligne_spec = f"       1{str(num_sequence).rjust(4)}{code_client}{epaisseur_str}{offset_str}{hauteur_str}{param_fixe}\n"
 
-    # Sélecteur de bobine ruban
     code_ruban = "O1" if marquage_nom == "OR" else ("B1" if marquage_nom in ["BLANC", "ARGENT"] else "N1")
 
     # A. Mode Longitudinal (UCC)
@@ -111,7 +136,6 @@ def generer_bloc_livre_system3(
             pos_g = int(griffe_pos_mm) + ((len(mots_griffe) - 1 - g_idx) * 8)
             elements_a_dorer.append((pos_g, formater_texte_system3(g_ligne)))
 
-    # Ordonnancement strict du haut du dos vers le bas
     elements_a_dorer.sort(key=lambda x: x[0], reverse=True)
 
     lignes_texte = []
@@ -285,6 +309,11 @@ def recuperer_titrage_enregistre(client, train, num_livre):
             rec = reponse.data[0]
             df_lignes = pd.DataFrame(json.loads(rec["lignes_json"])) if rec.get("lignes_json") else None
             df_pieces = pd.DataFrame(json.loads(rec["pieces_json"])) if rec.get("pieces_json") else None
+
+            # Décodage préventif des textes s'ils étaient stockés avec des séquences \Af etc.
+            if df_lignes is not None and not df_lignes.empty and "Titrage" in df_lignes.columns:
+                df_lignes["Titrage"] = df_lignes["Titrage"].apply(decoder_texte_system3)
+
             return df_lignes, df_pieces
     except Exception:
         pass
@@ -294,7 +323,13 @@ def recuperer_titrage_enregistre(client, train, num_livre):
 def sauvegarder_titrage_sur_base(client, train, num_livre, date_saisie, df_lignes, df_pieces, specs_modifiees):
     supabase = obtenir_client_supabase()
     num_livre_int = int(num_livre)
-    json_lignes = json.dumps(df_lignes.to_dict(orient="records"), ensure_ascii=False)
+
+    # Nettoyage des textes en français clair avant stockage JSON
+    df_lignes_clean = df_lignes.copy() if df_lignes is not None else pd.DataFrame()
+    if not df_lignes_clean.empty and "Titrage" in df_lignes_clean.columns:
+        df_lignes_clean["Titrage"] = df_lignes_clean["Titrage"].apply(decoder_texte_system3)
+
+    json_lignes = json.dumps(df_lignes_clean.to_dict(orient="records"), ensure_ascii=False)
     json_pieces = json.dumps(df_pieces.to_dict(orient="records"), ensure_ascii=False) if df_pieces is not None else "[]"
 
     donnees_titrage = {
@@ -382,6 +417,7 @@ def generer_image_gabarit(
     px_par_mm = h_dos_px / haut_maquette
 
     def tracer_texte(pt, txt, fill_color, fnt, anc="mm", alg="center"):
+        txt = decoder_texte_system3(txt)
         if not is_double:
             draw.text(pt, txt, fill=fill_color, font=fnt, anchor=anc, align=alg)
             return
@@ -404,6 +440,7 @@ def generer_image_gabarit(
         img.paste(calque_agrandi, (pos_x, pos_y), calque_agrandi)
 
     def mesurer_taille_vertical(texte, fnt):
+        texte = decoder_texte_system3(texte)
         if not texte:
             return 0, 0
         bbox = draw.textbbox((0, 0), texte, font=fnt)
@@ -417,6 +454,7 @@ def generer_image_gabarit(
         return hauteur_calque, largeur_calque
 
     def tracer_texte_vertical(x_centre_colonne, y_centre, texte, fill_color, fnt):
+        texte = decoder_texte_system3(texte)
         if not texte:
             return
         bbox = draw.textbbox((0, 0), texte, font=fnt)
@@ -449,7 +487,7 @@ def generer_image_gabarit(
         draw.line([(w_regle_px - 6, y_mm), (w_regle_px, y_mm)], fill="#555555", width=1)
         draw.text((w_regle_px - 50, y_mm - 6), f"{mm} mm", fill="#555555", font=font_small)
 
-    # Dos / Couverture
+    # Dos
     x_dos = w_regle_px + 15
     y_dos = 20
     draw.rectangle([(x_dos, y_dos), (x_dos + w_dos_px, y_dos + h_dos_px)], fill=c_toile_hex, outline="#111111", width=2)
@@ -461,7 +499,7 @@ def generer_image_gabarit(
             haut_p_mm = row_p["Hauteur pièce (mm)"]
             c_p_nom = row_p["Couleur pièce"]
             m_p_nom = row_p["Couleur marquage"]
-            txt_p = str(row_p.get("Titre sur pièce", "")).strip()
+            txt_p = decoder_texte_system3(str(row_p.get("Titre sur pièce", "")).strip())
 
             if pd.notna(pos_p_mm) and pd.notna(haut_p_mm):
                 bg_p_hex = HEX_COULEURS_TOILE.get(c_p_nom, "#8b0000")
@@ -496,7 +534,7 @@ def generer_image_gabarit(
     if df_lignes is not None and not df_lignes.empty:
         for _, row_l in df_lignes.iterrows():
             mm_pos = row_l["Hauteur du titre (mm)"]
-            txt = str(row_l["Titrage"]).strip()
+            txt = decoder_texte_system3(str(row_l["Titrage"]).strip())
 
             if pd.notna(mm_pos) and txt and txt != "None":
                 x_center = x_dos + (w_dos_px / 2)
@@ -524,9 +562,10 @@ def generer_image_gabarit(
 
     # Griffe client
     if griffe_texte:
+        griffe_claire = decoder_texte_system3(griffe_texte)
         x_center = x_dos + (w_dos_px / 2)
         chars_max = max(int((w_dos_px - 8) / 7), 1)
-        mots = griffe_texte.replace("\n", " ").split()
+        mots = griffe_claire.replace("\n", " ").split()
         lignes_g, ligne_c = [], []
         for m in mots:
             if len(" ".join(ligne_c + [m])) <= chars_max:
@@ -662,7 +701,7 @@ else:
                 st.subheader("🏷️ Griffe Client")
                 c_grf1, c_grf2 = st.columns([2, 1])
                 with c_grf1:
-                    inclure_griffe = st.checkbox(f"Imprimer la griffe ({griffe_registree.replace(chr(10), ' / ')})", value=True)
+                    inclure_griffe = st.checkbox(f"Imprimer la griffe ({decoder_texte_system3(griffe_registree).replace(chr(10), ' / ')})", value=True)
                 with c_grf2:
                     if inclure_griffe:
                         griffe_hauteur_mm = st.number_input("Position bas (mm)", min_value=0, max_value=200, value=int(griffe_pos_defaut), step=1)
@@ -702,7 +741,7 @@ else:
             st.write("---")
             st.subheader("✍️ Lignes de titrage (Position en mm)")
 
-            df_lignes_initial = df_lignes_existant if df_lignes_existant is not None else pd.DataFrame([{
+            df_lignes_initial = df_lignes_existant if (df_lignes_existant is not None and not df_lignes_existant.empty) else pd.DataFrame([{
                 "Hauteur du titre (mm)": int(t3_haut_maquette * 0.20),
                 "Titrage": "TITRE",
             }])
@@ -711,7 +750,7 @@ else:
                 df_lignes_initial,
                 column_config={
                     "Hauteur du titre (mm)": st.column_config.NumberColumn("Position (mm depuis le bas)", min_value=0, max_value=t3_haut_maquette, step=1, required=True),
-                    "Titrage": st.column_config.TextColumn("Texte à imprimer", required=True),
+                    "Titrage": st.column_config.TextColumn("Texte à imprimer (avec accents français)", required=True),
                 },
                 num_rows="dynamic",
                 use_container_width=True,
@@ -749,7 +788,7 @@ else:
                 ):
                     st.success(f"✅ Enregistré (Livre N°{t3_livre_num} — Train {t3_train_sel})")
 
-            # --- ZONE D'EXPORT / GENERATION FICHIER MACHINE SYSTEM 3 ---
+            # --- ZONE D'EXPORT SYSTEM 3 (.S3T) ---
             st.write("---")
             st.subheader("🖨️ Génération du fichier machine (.S3T)")
 

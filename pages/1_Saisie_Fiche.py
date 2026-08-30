@@ -913,4 +913,12 @@ else:
 
             buf = io.BytesIO()
             img_gabarit.save(buf, format="PNG")
-            st.image(buf.getvalue(), use_container_width=False)
+
+            # Le visuel est généré en haute résolution interne (pour un rendu
+            # net des accents et des petits détails), mais affiché plus petit
+            # à l'écran. FACTEUR_AFFICHAGE règle uniquement la taille visible
+            # dans l'interface, sans jamais modifier le calcul des positions
+            # en mm ni la qualité de l'image sous-jacente.
+            FACTEUR_AFFICHAGE = 0.7
+            largeur_affichage = max(int(img_gabarit.width * FACTEUR_AFFICHAGE), 1)
+            st.image(buf.getvalue(), width=largeur_affichage)

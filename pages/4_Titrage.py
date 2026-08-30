@@ -366,21 +366,76 @@ HEX_COULEURS_MARQUAGE = {
 # 3. MOTEUR GRAPHIQUE (GABARIT DE VISUALISATION AVEC GESTION POLICES UTF-8)
 # ==============================================================================
 
-def charger_police_compatible(taille_pt, bold=True):
-    polices_a_tester = [
-        "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "LiberationSans-Bold.ttf" if bold else "LiberationSans-Regular.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "arial.ttf",
-        "Arial.ttf"
+import os
+
+# Cache des polices déjà résolues, pour éviter de refaire la recherche
+# disque à chaque appel (l'app Streamlit ré-exécute le script en boucle).
+_CACHE_POLICES = {}
+
+
+def _chemins_police_dejavu(bold):
+    """
+    Construit une liste de chemins candidats vers une police garantissant
+    une couverture Unicode complète des accents français (é, è, à, ê, î,
+    ô, ù, ç, etc.), en incluant une police embarquée par la librairie
+    matplotlib (installée avec pandas dans la plupart des environnements),
+    ce qui garantit un résultat correct même sur des hébergements minimalistes
+    (Streamlit Community Cloud, Docker "slim", etc.) où les polices système
+    ne sont pas installées par défaut.
+    """
+    nom_fichier = "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"
+
+    chemins = [
+        # 1) Police placée par l'utilisateur à côté du script (solution la
+        #    plus fiable : à ajouter dans un dossier "fonts/" du dépôt).
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", nom_fichier),
+        # 2) Emplacements système Linux courants (Debian/Ubuntu)
+        f"/usr/share/fonts/truetype/dejavu/{nom_fichier}",
+        f"/usr/local/share/fonts/{nom_fichier}",
+        nom_fichier,
     ]
-    for nom_fnt in polices_a_tester:
+
+    # 3) Police embarquée dans le paquet matplotlib (présente sur quasiment
+    #    tous les environnements Python de data / traitement, indépendante
+    #    du système d'exploitation puisqu'installée via pip).
+    try:
+        import matplotlib
+        chemins.append(os.path.join(matplotlib.get_data_path(), "fonts", "ttf", nom_fichier))
+    except Exception:
+        pass
+
+    return chemins
+
+
+def charger_police_compatible(taille_pt, bold=True):
+    cle_cache = (taille_pt, bold)
+    if cle_cache in _CACHE_POLICES:
+        return _CACHE_POLICES[cle_cache]
+
+    for chemin in _chemins_police_dejavu(bold):
         try:
-            return ImageFont.truetype(nom_fnt, taille_pt)
+            police = ImageFont.truetype(chemin, taille_pt)
+            _CACHE_POLICES[cle_cache] = police
+            return police
         except Exception:
             continue
-    return ImageFont.load_default()
+
+    # Dernier recours : police bitmap Pillow (ASCII uniquement). Si on
+    # arrive ici, les accents ne s'afficheront pas -> on prévient l'utilisateur
+    # une seule fois pour ne pas polluer l'interface.
+    if not _CACHE_POLICES.get("_alerte_affichee"):
+        st.warning(
+            "⚠️ Police Unicode introuvable sur ce serveur : les caractères "
+            "accentués (É, È, À, Ê...) risquent de ne pas s'afficher dans "
+            "le gabarit. Ajoutez un fichier 'fonts/DejaVuSans-Bold.ttf' à "
+            "côté du script, ou ajoutez 'fonts-dejavu-core' dans un fichier "
+            "packages.txt à la racine du projet."
+        )
+        _CACHE_POLICES["_alerte_affichee"] = True
+
+    police = ImageFont.load_default()
+    _CACHE_POLICES[cle_cache] = police
+    return police
 
 
 def generer_image_gabarit(

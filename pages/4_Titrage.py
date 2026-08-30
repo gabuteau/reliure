@@ -7,6 +7,92 @@ import streamlit as st
 from supabase import create_client
 
 
+# ==============================================================================
+# FONCTIONS DE FORMATAGE & EXPORT SYSTEM 3
+# ==============================================================================
+
+def formater_texte_system3(texte):
+    """Remplace les caractères accentués français par les codes d'échappement System3."""
+    if not texte:
+        return ""
+    t = str(texte).strip().upper()
+    remplacements = {
+        "É": "\\Af", "È": "\\Ag", "Ê": "\\Ah", "Ë": "\\Aj",
+        "Ç": "\\Am", "Û": "\\Aw", "Ù": "\\Ax", "Ü": "\\Ay",
+        "Â": "\\Aq", "À": "\\Ar", "Ä": "\\As", "Î": "\\Au",
+        "Ï": "\\Av", "Ô": "\\At", "Ö": "\\Az"
+    }
+    for char, code in remplacements.items():
+        t = t.replace(char, code)
+    return t
+
+
+def generer_bloc_livre_system3(num_sequence, num_livre, type_toile, haut_maquette, larg_dos, df_lignes, griffe_texte="", griffe_pos_mm=15, sens_long=False):
+    """Génère le bloc d'instructions pour un livre individuel avec tri par ligne/position."""
+    code_toile = (str(type_toile)[:10]).upper().ljust(10)
+    epaisseur_str = f"{float(larg_dos):.1f}B".rjust(5)
+    offset_str = ".00".rjust(10)
+    hauteur_str = f"{float(haut_maquette):.2f}".rjust(6)
+    param_fixe = " 1585                      "
+    
+    ligne_spec = f"       1{str(num_sequence).rjust(4)}{code_toile}{epaisseur_str}{offset_str}{hauteur_str}{param_fixe}\n"
+    mode_axe = "HCC      O1"
+    
+    elements_a_dorer = []
+    
+    # 1. Collecte des lignes directes sur le dos
+    if df_lignes is not None and not df_lignes.empty:
+        for _, row in df_lignes.iterrows():
+            pos_y = int(row["Hauteur du titre (mm)"])
+            txt_brut = str(row["Titrage"]).strip()
+            
+            sous_lignes = [l.strip() for l in txt_brut.split("\n") if l.strip()]
+            for s_idx, sous_txt in enumerate(sous_lignes):
+                pos_calculee = pos_y - (s_idx * 15)
+                texte_formate = formater_texte_system3(sous_txt)
+                elements_a_dorer.append((pos_calculee, texte_formate))
+                
+    # 2. Collecte de la griffe client
+    if griffe_texte:
+        mots_griffe = [l.strip() for l in griffe_texte.split("\n") if l.strip()]
+        for g_idx, g_ligne in enumerate(mots_griffe):
+            pos_g = int(griffe_pos_mm) + ((len(mots_griffe) - 1 - g_idx) * 8)
+            elements_a_dorer.append((pos_g, formater_texte_system3(g_ligne)))
+            
+    # 3. Tri strict par position Y décroissante (du haut vers le bas)
+    elements_a_dorer.sort(key=lambda x: x[0], reverse=True)
+    
+    # 4. Formatage des lignes triées
+    lignes_texte = []
+    for pos_y, texte in elements_a_dorer:
+        lignes_texte.append(f"           {str(pos_y).rjust(4)}{texte}")
+            
+    bloc = ligne_spec
+    if lignes_texte:
+        premiere_ligne = lignes_texte[0].replace("           ", mode_axe, 1)
+        bloc += premiere_ligne + "\n"
+        for l in lignes_texte[1:]:
+            bloc += l + "\n"
+    else:
+        bloc += mode_axe + "250\n"
+        
+    bloc += "//\n"
+    bloc += "." * 350 + "\n"
+    return bloc
+
+
+def assembler_fichier_system3(numero_job, liste_blocs):
+    """Assemble l'en-tête global et tous les blocs de livres."""
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    job_formate = str(numero_job)[:8].ljust(8)
+    en_tete = f"110 {job_formate}{timestamp}".ljust(114) + "\n"
+    return en_tete + "".join(liste_blocs)
+
+
+# ==============================================================================
+# FONCTIONS SUPABASE & DONNEES
+# ==============================================================================
+
 def obtenir_client_supabase():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
@@ -251,6 +337,10 @@ HEX_COULEURS_MARQUAGE = {
     "AUTRE": "#c0c0c0",
 }
 
+
+# ==============================================================================
+# GENERATEUR VISUEL DU DOS
+# ==============================================================================
 
 def generer_image_gabarit(
     haut_maquette,
@@ -560,79 +650,6 @@ def generer_image_gabarit(
             )
 
     return img
-
-
-# ==============================================================================
-# FONCTIONS DE FORMATAGE SYSTEM 3
-# ==============================================================================
-
-def formater_texte_system3(texte):
-    """Remplace les caractères accentués français par les codes d'échappement System3."""
-    if not texte:
-        return ""
-    t = str(texte).strip().upper()
-    remplacements = {
-        "É": "\\Af", "È": "\\Ag", "Ê": "\\Ah", "Ë": "\\Aj",
-        "Ç": "\\Am", "Û": "\\Aw", "Ù": "\\Ax", "Ü": "\\Ay",
-        "Â": "\\Aq", "À": "\\Ar", "Ä": "\\As", "Î": "\\Au",
-        "Ï": "\\Av", "Ô": "\\At", "Ö": "\\Az"
-    }
-    for char, code in remplacements.items():
-        t = t.replace(char, code)
-    return t
-
-def generer_bloc_livre_system3(num_sequence, num_livre, type_toile, haut_maquette, larg_dos, df_lignes, griffe_texte="", griffe_pos_mm=15, sens_long=False):
-    """Génère le bloc d'instructions pour un livre individuel avec tri par ligne/position."""
-    code_toile = (str(type_toile)[:10]).upper().ljust(10)
-    epaisseur_str = f"{float(larg_dos):.1f}B".rjust(5)
-    offset_str = ".00".rjust(10)
-    hauteur_str = f"{float(haut_maquette):.2f}".rjust(6)
-    param_fixe = " 1585                      "
-    
-    ligne_spec = f"       1{str(num_sequence).rjust(4)}{code_toile}{epaisseur_str}{offset_str}{hauteur_str}{param_fixe}\n"
-    mode_axe = "HCC      O1"
-    
-    elements_a_dorer = []
-    
-    # 1. Collecte des lignes directes sur le dos
-    if df_lignes is not None and not df_lignes.empty:
-        for _, row in df_lignes.iterrows():
-            pos_y = int(row["Hauteur du titre (mm)"])
-            txt_brut = str(row["Titrage"]).strip()
-            
-            sous_lignes = [l.strip() for l in txt_brut.split("\n") if l.strip()]
-            for s_idx, sous_txt in enumerate(sous_lignes):
-                pos_calculee = pos_y - (s_idx * 15)
-                texte_formate = formater_texte_system3(sous_txt)
-                elements_a_dorer.append((pos_calculee, texte_formate))
-                
-    # 2. Collecte de la griffe client
-    if griffe_texte:
-        mots_griffe = [l.strip() for l in griffe_texte.split("\n") if l.strip()]
-        for g_idx, g_ligne in enumerate(mots_griffe):
-            pos_g = int(griffe_pos_mm) + ((len(mots_griffe) - 1 - g_idx) * 8)
-            elements_a_dorer.append((pos_g, formater_texte_system3(g_ligne)))
-            
-    # 3. Tri strict par position Y décroissante (du haut du dos vers le bas)
-    elements_a_dorer.sort(key=lambda x: x[0], reverse=True)
-    
-    # 4. Formatage des lignes triées
-    lignes_texte = []
-    for pos_y, texte in elements_a_dorer:
-        lignes_texte.append(f"           {str(pos_y).rjust(4)}{texte}")
-            
-    bloc = ligne_spec
-    if lignes_texte:
-        premiere_ligne = lignes_texte[0].replace("           ", mode_axe, 1)
-        bloc += premiere_ligne + "\n"
-        for l in lignes_texte[1:]:
-            bloc += l + "\n"
-    else:
-        bloc += mode_axe + "250\n"
-        
-    bloc += "//\n"
-    bloc += "." * 350 + "\n"
-    return bloc
 
 
 # ==============================================================================

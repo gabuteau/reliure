@@ -78,6 +78,24 @@ def supprimer_livre_specifique(client, train, num_livre):
         st.error(f"Erreur lors de la suppression : {e}")
         return False
 
+def supprimer_train_complet(client, train):
+    """Supprime toutes les fiches d'un train et leurs titrages associés.
+    Si ce train était le dernier de la séquence pour ce client, son numéro
+    redevient automatiquement disponible : generer_automatiquement_numero_train
+    recalcule toujours le prochain numéro à partir des données réellement
+    présentes sur Supabase, donc aucune action supplémentaire n'est requise."""
+    supabase = obtenir_client_supabase()
+    try:
+        try:
+            supabase.table("titrage_system3").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).execute()
+        except Exception:
+            pass
+        supabase.table("fiches_livres").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).execute()
+        return True
+    except Exception as e:
+        st.error(f"Erreur lors de la suppression du train : {e}")
+        return False
+
 def recuperer_livres_du_train(client, train):
     supabase = obtenir_client_supabase()
     reponse = supabase.table("fiches_livres").select("numero_livre, nature_doc, text_doc, largeur, hauteur, type_reliure, couleur, cocher_piece_titre, couleur_pieces_toile").eq("nom_client", client.strip()).eq("numero_train", train.strip()).order("numero_livre").execute()
@@ -202,20 +220,16 @@ def parser_fichier_system3(contenu_texte):
                         "Hauteur du titre (mm)": int(hauteur * 0.70),
                         "Titrage": decoder_texte_system3(texte_brut)
                     })
-            elif re.match(r"^\s*[1-9]\s+", l):
-                texte_brut = re.sub(r"^\s*[1-9]\s+", "", l).strip()
-                if texte_brut and texte_brut != ".":
-                    lignes_titrage.append({
-                        "Hauteur du titre (mm)": int(hauteur * 0.50),
-                        "Titrage": decoder_texte_system3(texte_brut)
-                    })
 
             # Cas B : Titrage standard HCC — découpage positionnel strict
-            # Colonnes 11 à 15 (indices 11:15) = position Y, colonne 15+ = texte
+            # Colonne 11 (index 10) = drapeau, colonnes 12-14 (indices 11:14) = position Y, colonne 15+ (index 14+) = texte.
+            # (L'ancienne branche "elif ^\s*[1-9]\s+" a été retirée : elle interceptait à tort
+            # les lignes normales dont le drapeau était un chiffre non nul, par ex. "3", en
+            # écrasant la vraie position Y par une hauteur fixe et en polluant le texte.)
             else:
-                if len(l) > 11:
-                    code_pos = l[11:15].strip()
-                    texte_brut = l[15:].strip()
+                if len(l) >= 14:
+                    code_pos = l[11:14].strip()
+                    texte_brut = l[14:].strip()
 
                     try:
                         val_y = int(code_pos)
@@ -625,7 +639,41 @@ else:
             st.header("📊 Suivi en direct du Train")
             st.subheader(f"Train : {numero_train}")
             livres_train = recuperer_livres_du_train(nom_client_valide, numero_train)
-            
+
+            # --- ZONE DANGEREUSE : SUPPRESSION D'UN TRAIN COMPLET (double confirmation) ---
+            with st.expander("🗑️ Zone dangereuse : Supprimer ce train complet"):
+                cle_confirmation = f"confirmation_suppression_train_{nom_client_valide}"
+                st.caption(f"Supprime **définitivement** les {len(livres_train)} fiche(s) du train **{numero_train}** ainsi que tous leurs titrages associés.")
+
+                if st.session_state.get(cle_confirmation) != numero_train:
+                    # Étape 1 : demande initiale
+                    if st.button(f"🗑️ Supprimer le train {numero_train}", key="btn_suppr_train_etape1"):
+                        st.session_state[cle_confirmation] = numero_train
+                        st.rerun()
+                else:
+                    # Étape 2 : confirmation renforcée (obligatoire avant toute suppression)
+                    st.error(
+                        f"⚠️ **Action irréversible.** Vous êtes sur le point de supprimer "
+                        f"**{len(livres_train)} fiche(s)** et l'ensemble de leurs titrages pour le train **{numero_train}**."
+                    )
+                    confirmation_cochee = st.checkbox(
+                        f"Je confirme vouloir supprimer définitivement le train {numero_train}",
+                        key="checkbox_confirmation_suppression_train"
+                    )
+                    c_annuler, c_confirmer = st.columns(2)
+                    with c_annuler:
+                        if st.button("❌ Annuler", use_container_width=True, key="btn_annuler_suppr_train"):
+                            del st.session_state[cle_confirmation]
+                            st.rerun()
+                    with c_confirmer:
+                        if st.button("✅ Confirmer la suppression définitive", type="primary", use_container_width=True, disabled=not confirmation_cochee, key="btn_confirmer_suppr_train"):
+                            if supprimer_train_complet(nom_client_valide, numero_train):
+                                del st.session_state[cle_confirmation]
+                                if "livre_selectionne" in st.session_state:
+                                    del st.session_state.livre_selectionne
+                                st.success(f"✅ Train {numero_train} supprimé avec succès. Si c'était le dernier train de la séquence, son numéro est de nouveau disponible.")
+                                st.rerun()
+
             if livres_train:
                 df_train = pd.DataFrame(livres_train, columns=["N° Livre", "Nature", "État", "Largeur", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"])
                 

@@ -1,42 +1,26 @@
-import io
-import json
-import re
-from datetime import datetime
-import pandas as pd
 import streamlit as st
 from supabase import create_client
-
+from datetime import datetime
+import pandas as pd
+import re
+import json
 
 def obtenir_client_supabase():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-
 def determiner_categorie_format(l, h):
-    if l <= 115 and h <= 185:
-        return "115 x 185 (In 12)"
-    elif l <= 130 and h <= 200:
-        return "130 x 200 (In 8° écu)"
-    elif l <= 160 and h <= 245:
-        return "160 x 245 (In 8° raisin)"
-    elif l <= 175 and h <= 270:
-        return "175 x 270 (In 8° jésus)"
-    elif l <= 245 and h <= 320:
-        return "245 x 320 (In 4° raisin)"
-    elif l <= 270 and h <= 350:
-        return "270 x 350 (In 4° jésus)"
-    elif l <= 280 and h <= 440:
-        return "280 x 440 (Folio carré)"
-    elif l <= 320 and h <= 490:
-        return "320 x 490 (Folio raisin)"
-    elif l <= 350 and h <= 540:
-        return "350 x 540 (Folio jésus)"
-    elif l <= 440 and h <= 600:
-        return "440 x 600 (Grand folio)"
-    elif l <= 700:
-        return "Plano A"
-    else:
-        return "Plano B"
-
+    if l <= 115 and h <= 185: return "115 x 185 (In 12)"
+    elif l <= 130 and h <= 200: return "130 x 200 (In 8° écu)"
+    elif l <= 160 and h <= 245: return "160 x 245 (In 8° raisin)"
+    elif l <= 175 and h <= 270: return "175 x 270 (In 8° jésus)"
+    elif l <= 245 and h <= 320: return "245 x 320 (In 4° raisin)"
+    elif l <= 270 and h <= 350: return "270 x 350 (In 4° jésus)"
+    elif l <= 280 and h <= 440: return "280 x 440 (Folio carré)"
+    elif l <= 320 and h <= 490: return "320 x 490 (Folio raisin)"
+    elif l <= 350 and h <= 540: return "350 x 540 (Folio jésus)"
+    elif l <= 440 and h <= 600: return "440 x 600 (Grand folio)"
+    elif l <= 700: return "Plano A"
+    else: return "Plano B"
 
 def lister_tous_les_clients():
     supabase = obtenir_client_supabase()
@@ -46,12 +30,10 @@ def lister_tous_les_clients():
     except Exception:
         return []
 
-
 def lister_les_trains_du_client(client):
     supabase = obtenir_client_supabase()
     reponse = supabase.table("fiches_livres").select("numero_train").eq("nom_client", client.strip()).execute()
     return sorted(list(set([row["numero_train"] for row in reponse.data])), reverse=True)
-
 
 def generer_automatiquement_numero_train(client):
     annee_courante = datetime.now().year
@@ -70,7 +52,6 @@ def generer_automatiquement_numero_train(client):
         prochain_ordre = 1
     return f"{prefixe}{prochain_ordre:03d}"
 
-
 def determiner_prochain_numero_livre(client, train):
     supabase = obtenir_client_supabase()
     reponse = supabase.table("fiches_livres").select("numero_livre").eq("nom_client", client.strip()).eq("numero_train", train.strip()).execute()
@@ -79,12 +60,10 @@ def determiner_prochain_numero_livre(client, train):
     nums = [int(row["numero_livre"]) for row in reponse.data if row["numero_livre"] is not None]
     return (max(nums) + 1) if nums else 1
 
-
 def recuperer_livre_specifique(client, train, num_livre):
     supabase = obtenir_client_supabase()
     reponse = supabase.table("fiches_livres").select("*").eq("nom_client", client.strip()).eq("numero_train", train.strip()).eq("numero_livre", num_livre).execute()
     return reponse.data[0] if reponse.data else None
-
 
 def supprimer_livre_specifique(client, train, num_livre):
     supabase = obtenir_client_supabase()
@@ -99,21 +78,6 @@ def supprimer_livre_specifique(client, train, num_livre):
         st.error(f"Erreur lors de la suppression : {e}")
         return False
 
-
-def supprimer_train_complet(client, train):
-    supabase = obtenir_client_supabase()
-    try:
-        try:
-            supabase.table("titrage_system3").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).execute()
-        except Exception:
-            pass
-        supabase.table("fiches_livres").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).execute()
-        return True
-    except Exception as e:
-        st.error(f"Erreur lors de la suppression du train : {e}")
-        return False
-
-
 def recuperer_livres_du_train(client, train):
     supabase = obtenir_client_supabase()
     reponse = supabase.table("fiches_livres").select("numero_livre, nature_doc, text_doc, largeur, hauteur, type_reliure, couleur, cocher_piece_titre, couleur_pieces_toile").eq("nom_client", client.strip()).eq("numero_train", train.strip()).order("numero_livre").execute()
@@ -126,11 +90,9 @@ def recuperer_livres_du_train(client, train):
         ])
     return donnees_formatees
 
-
 def enregistrer_ou_mettre_a_jour_livre(donnees):
     supabase = obtenir_client_supabase()
     supabase.table("fiches_livres").upsert(donnees).execute()
-
 
 def charger_types_toile_supabase():
     supabase = obtenir_client_supabase()
@@ -141,18 +103,23 @@ def charger_types_toile_supabase():
     except Exception:
         return ["Buckram", "Fantasia", "Métisse"]
 
-
 def charger_couleurs_par_toile_supabase(type_toile_selectionne):
     supabase = obtenir_client_supabase()
     try:
-        reponse = supabase.table("referentiel_toiles").select("couleur").eq("type_toile", type_toile_selectionne).order("couleur").execute()
+        reponse = supabase.table("referentiel_toiles") \
+            .select("couleur") \
+            .eq("type_toile", type_toile_selectionne) \
+            .order("couleur") \
+            .execute()
         couleurs = [row["couleur"] for row in reponse.data]
         return couleurs if couleurs else liste_couleurs_generique
     except Exception:
         return liste_couleurs_generique
 
 
+# --- PARSEUR ET DÉCODEUR SYSTEM 3 (.S3T) CORRIGÉ ---
 def decoder_texte_system3(texte):
+    """Convertit les codes d'échappement System3 en texte français lisible."""
     if not texte:
         return ""
     t = str(texte)
@@ -170,8 +137,8 @@ def decoder_texte_system3(texte):
     t = re.sub(r"\\S\d{3}", "", t)
     return t.strip()
 
-
 def parser_fichier_system3(contenu_texte):
+    """Parse un fichier .S3T et extrait fidèlement la position Y et le texte de chaque ligne."""
     lignes = [l.rstrip("\r\n") for l in contenu_texte.split("\n") if l.strip()]
     if not lignes:
         return []
@@ -191,7 +158,8 @@ def parser_fichier_system3(contenu_texte):
         if not bloc:
             continue
         
-        ligne_entete = bloc[0].ljust(80)
+        # 1. Cartouche pièce (Ligne 1)
+        ligne_entete = bloc[0]
         try:
             num_seq = int(ligne_entete[8:12].strip())
         except Exception:
@@ -200,7 +168,7 @@ def parser_fichier_system3(contenu_texte):
         code_client = ligne_entete[12:22].strip()
         epaisseur_str = ligne_entete[22:27].replace("B", "").strip()
         hauteur_str = ligne_entete[37:43].strip()
-        consigne_atelier = ligne_entete[48:].strip()
+        consigne_atelier = ligne_entete[48:].strip() if len(ligne_entete) > 48 else ""
 
         try:
             epaisseur = float(epaisseur_str)
@@ -214,21 +182,19 @@ def parser_fichier_system3(contenu_texte):
 
         is_long = any(l.startswith("UCC") or l.startswith("ULL") for l in bloc) or (epaisseur <= 20.0)
 
+        # Détection pièces de titre
         cocher_pt = "P." in consigne_atelier.upper() or "PIECE" in consigne_atelier.upper()
         couleur_pt = "Rouge"
-        if "NOIR" in consigne_atelier.upper():
-            couleur_pt = "Noir"
-        elif "ROUGE" in consigne_atelier.upper():
-            couleur_pt = "Rouge"
-        elif "BLEU" in consigne_atelier.upper() or "BF" in consigne_atelier.upper() or "BX" in consigne_atelier.upper():
-            couleur_pt = "Bleu"
-        elif "VERT" in consigne_atelier.upper() or "VF" in consigne_atelier.upper():
-            couleur_pt = "Vert"
-        elif "MARRON" in consigne_atelier.upper() or "MF" in consigne_atelier.upper():
-            couleur_pt = "Marron"
+        if "NOIR" in consigne_atelier.upper(): couleur_pt = "Noir"
+        elif "ROUGE" in consigne_atelier.upper(): couleur_pt = "Rouge"
+        elif "BLEU" in consigne_atelier.upper() or "BF" in consigne_atelier.upper() or "BX" in consigne_atelier.upper(): couleur_pt = "Bleu"
+        elif "VERT" in consigne_atelier.upper() or "VF" in consigne_atelier.upper(): couleur_pt = "Vert"
+        elif "MARRON" in consigne_atelier.upper() or "MF" in consigne_atelier.upper(): couleur_pt = "Marron"
 
+        # 2. Extraction exacte du texte et de la hauteur Y
         lignes_titrage = []
         for l in bloc[1:]:
+            # Cas A : Titrage en long UCC / ULL
             if l.startswith("UCC") or l.startswith("ULL"):
                 texte_brut = re.sub(r"^(UCC|ULL)\d+\s+\d+[A-Z0-9]+\s+\d+", "", l).strip()
                 if texte_brut and texte_brut != ".":
@@ -243,18 +209,24 @@ def parser_fichier_system3(contenu_texte):
                         "Hauteur du titre (mm)": int(hauteur * 0.50),
                         "Titrage": decoder_texte_system3(texte_brut)
                     })
-            else:
-                l_pad = l.ljust(80)
-                zone_pos = l_pad[11:15].strip()
-                texte_brut = l_pad[15:].strip()
 
-                match_pos = re.search(r"(\d{1,3})$", zone_pos)
-                if match_pos and texte_brut and texte_brut != ".":
-                    val_y = int(match_pos.group(1))
-                    lignes_titrage.append({
-                        "Hauteur du titre (mm)": val_y,
-                        "Titrage": decoder_texte_system3(texte_brut)
-                    })
+            # Cas B : Titrage standard HCC — découpage positionnel strict
+            # Colonnes 11 à 15 (indices 11:15) = position Y, colonne 15+ = texte
+            else:
+                if len(l) > 11:
+                    code_pos = l[11:15].strip()
+                    texte_brut = l[15:].strip()
+
+                    try:
+                        val_y = int(code_pos)
+                    except Exception:
+                        val_y = int(hauteur * 0.20)
+
+                    if texte_brut and texte_brut != ".":
+                        lignes_titrage.append({
+                            "Hauteur du titre (mm)": val_y,
+                            "Titrage": decoder_texte_system3(texte_brut)
+                        })
 
         df_l = pd.DataFrame(lignes_titrage) if lignes_titrage else pd.DataFrame([{"Hauteur du titre (mm)": int(hauteur * 0.20), "Titrage": "TITRE"}])
 
@@ -275,6 +247,7 @@ def parser_fichier_system3(contenu_texte):
     return livres_importes
 
 
+# --- CONFIGURATION STREAMLIT ---
 st.set_page_config(page_title="Saisie & Suivi des Livres", layout="wide")
 st.title("📚 Saisie de Fiche — Devis + Traitements")
 
@@ -317,6 +290,7 @@ else:
             liste_trains_existants = lister_les_trains_du_client(nom_client_valide)
             prochain_train_auto = generer_automatiquement_numero_train(nom_client_valide)
 
+            # --- ZONE D'IMPORTATION DIRECTEMENT APRÈS LE CLIENT ---
             with st.expander("📥 Importer un fichier System3 (.S3T) pour ce client", expanded=False):
                 st.caption(f"Charge un lot complet de livres et préremplit leurs titrages pour **{nom_client_valide}**.")
                 fichier_uploade = st.file_uploader("Sélectionner un fichier .S3T", type=["s3t", "txt"], key=f"upload_s3t_{nom_client_valide}")
@@ -397,6 +371,7 @@ else:
                             st.rerun()
 
             st.write("---")
+            # Étape 2 : Sélection du train
             options_train = ["-- Choisir un train --", "[+] Créer un nouveau train automatiquement"] + liste_trains_existants
             
             index_defaut_train = 0
@@ -454,14 +429,10 @@ else:
             st.write("---")
             st.subheader("3. Désignation format")
             col_dim1, col_dim2, col_dim3, col_dim4 = st.columns(4)
-            with col_dim1:
-                largeur = st.number_input("Largeur (mm)", min_value=0, value=int(donnees_edition["largeur"]) if donnees_edition else 160, step=1)
-            with col_dim2:
-                hauteur = st.number_input("Hauteur (mm)", min_value=0, value=int(donnees_edition["hauteur"]) if donnees_edition else 220, step=1)
-            with col_dim3:
-                epaisseur = st.number_input("Épaisseur (mm)", min_value=0, value=int(donnees_edition["epaisseur"]) if donnees_edition else 20, step=1)
-            with col_dim4:
-                ne_pas_rogner = st.checkbox("Ne pas rogner", value=bool(donnees_edition["ne_pas_rogner"]) if donnees_edition else False)
+            with col_dim1: largeur = st.number_input("Largeur (mm)", min_value=0, value=int(donnees_edition["largeur"]) if donnees_edition else 160, step=1)
+            with col_dim2: hauteur = st.number_input("Hauteur (mm)", min_value=0, value=int(donnees_edition["hauteur"]) if donnees_edition else 220, step=1)
+            with col_dim3: epaisseur = st.number_input("Épaisseur (mm)", min_value=0, value=int(donnees_edition["epaisseur"]) if donnees_edition else 20, step=1)
+            with col_dim4: ne_pas_rogner = st.checkbox("Ne pas rogner", value=bool(donnees_edition["ne_pas_rogner"]) if donnees_edition else False)
 
             format_detecte = determiner_categorie_format(largeur, hauteur)
             st.success(f"📐 **Format détecté** : {format_detecte}")
@@ -469,23 +440,18 @@ else:
             st.subheader("4. Traitements & Reliure")
             c_trt1, c_trt2, c_trt3 = st.columns(3)
             list_trt = ["T1", "T2", "T3", "T4", "T5", "T6"]
-            with c_trt1:
-                traitement = st.selectbox("Traitement", list_trt, index=list_trt.index(donnees_edition["traitement"]) if donnees_edition and donnees_edition["traitement"] in list_trt else 0)
+            with c_trt1: traitement = st.selectbox("Traitement", list_trt, index=list_trt.index(donnees_edition["traitement"]) if donnees_edition and donnees_edition["traitement"] in list_trt else 0)
             list_rel = ["Bradel", "Emboîtage", "Passure en carton"]
-            with c_trt2:
-                type_reliure = st.selectbox("Type de reliure", list_rel, index=list_rel.index(donnees_edition["type_reliure"]) if donnees_edition and donnees_edition["type_reliure"] in list_rel else 0)
+            with c_trt2: type_reliure = st.selectbox("Type de reliure", list_rel, index=list_rel.index(donnees_edition["type_reliure"]) if donnees_edition and donnees_edition["type_reliure"] in list_rel else 0)
             list_cou = ["Cahiers machine", "Surjeté", "Cahier manuel"]
-            with c_trt3:
-                type_couture = st.selectbox("Type de couture", list_cou, index=list_cou.index(donnees_edition["type_couture"]) if donnees_edition and donnees_edition["type_couture"] in list_cou else 0)
+            with c_trt3: type_couture = st.selectbox("Type de couture", list_cou, index=list_cou.index(donnees_edition["type_couture"]) if donnees_edition and donnees_edition["type_couture"] in list_cou else 0)
 
             agraphes = False
             nombre_cahiers = 0
             if type_couture == "Cahier manuel":
                 c_cah1, c_cah2 = st.columns(2)
-                with c_cah1:
-                    agraphes = st.checkbox("Présence d'agraphes", value=bool(donnees_edition["agraphes"]) if donnees_edition else False)
-                with c_cah2:
-                    nombre_cahiers = st.number_input("Nombre de cahiers", min_value=0, value=int(donnees_edition["nombre_cahiers"]) if donnees_edition else 0, step=1)
+                with c_cah1: agraphes = st.checkbox("Présence d'agraphes", value=bool(donnees_edition["agraphes"]) if donnees_edition else False)
+                with c_cah2: nombre_cahiers = st.number_input("Nombre de cahiers", min_value=0, value=int(donnees_edition["nombre_cahiers"]) if donnees_edition else 0, step=1)
 
             st.write("---")
             st.subheader("5. Spécifications du titrage")
@@ -507,13 +473,10 @@ else:
                             idx_sens_defaut = 1
 
                     titrage_sens = st.radio("Sens", ["Long", "Classique"], horizontal=True, index=idx_sens_defaut)
-                with c_tit2:
-                    lignes_sup = st.number_input("Lignes sup", min_value=0, value=int(donnees_edition["lignes_sup"]) if donnees_edition else 0, step=1)
+                with c_tit2: lignes_sup = st.number_input("Lignes sup", min_value=0, value=int(donnees_edition["lignes_sup"]) if donnees_edition else 0, step=1)
                 list_marq = ["OR", "ARGENT", "BLANC", "NOIR", "AUTRE"]
-                with c_tit3:
-                    titrage_couleur = st.selectbox("Marquage", list_marq, index=list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0)
-                with c_tit4:
-                    police = st.radio("Police", ["Elzévir", "Baton"], horizontal=True, index=0 if donnees_edition and donnees_edition["police"] == "Elzévir" else (1 if donnees_edition and donnees_edition["police"] in ["Baton", "Baskerville"] else 0))
+                with c_tit3: titrage_couleur = st.selectbox("Marquage", list_marq, index=list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0)
+                with c_tit4: police = st.radio("Police", ["Elzévir", "Baton"], horizontal=True, index=0 if donnees_edition and donnees_edition["police"] == "Elzévir" else (1 if donnees_edition and donnees_edition["police"] in ["Baton", "Baskerville"] else 0))
                 
                 with c_tit5:
                     idx_style = 0 if (not donnees_edition or donnees_edition.get("police_style") != "Double") else 1
@@ -663,34 +626,6 @@ else:
             st.subheader(f"Train : {numero_train}")
             livres_train = recuperer_livres_du_train(nom_client_valide, numero_train)
             
-            if livres_train and not train_selectionne.startswith("[+]"):
-                with st.expander("🗑️ Zone Danger — Supprimer ce train complet", expanded=False):
-                    st.error(f"⚠️ Vous vous apprêtez à supprimer le Train **{numero_train}** ({len(livres_train)} livre(s)) et **tous leurs titrages associés**.")
-                    cle_conf = f"conf_suppr_train_{nom_client_valide}_{numero_train}"
-                    
-                    if cle_conf not in st.session_state:
-                        st.session_state[cle_conf] = False
-
-                    if not st.session_state[cle_conf]:
-                        if st.button(f"Demander la suppression du Train {numero_train}", type="secondary", use_container_width=True):
-                            st.session_state[cle_conf] = True
-                            st.rerun()
-                    else:
-                        st.warning("🚨 **Confirmation requise :** Cette action est irréversible !")
-                        col_conf1, col_conf2 = st.columns(2)
-                        with col_conf1:
-                            if st.button("🔥 CONFIRMER LA SUPPRESSION", type="primary", use_container_width=True):
-                                if supprimer_train_complet(nom_client_valide, numero_train):
-                                    st.success(f"✅ Le Train {numero_train} a été entièrement supprimé.")
-                                    del st.session_state[cle_conf]
-                                    if "livre_selectionne" in st.session_state:
-                                        del st.session_state.livre_selectionne
-                                    st.rerun()
-                        with col_conf2:
-                            if st.button("❌ Annuler", use_container_width=True):
-                                st.session_state[cle_conf] = False
-                                st.rerun()
-
             if livres_train:
                 df_train = pd.DataFrame(livres_train, columns=["N° Livre", "Nature", "État", "Largeur", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"])
                 

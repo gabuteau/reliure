@@ -383,7 +383,6 @@ def generer_image_gabarit(
         pos_y = int(y_centre - calque_pivote.height / 2)
         img.paste(calque_pivote, (pos_x, pos_y), calque_pivote)
 
-    # Dessin de la règle
     draw.line(
         [(w_regle_px, 20), (w_regle_px, 20 + h_dos_px)], fill="#cccccc", width=2
     )
@@ -402,7 +401,6 @@ def generer_image_gabarit(
             (w_regle_px - 50, y_mm - 6), txt_mm, fill="#555555", font=font_small
         )
 
-    # Rectangle du dos
     x_dos = w_regle_px + 15
     y_dos = 20
     draw.rectangle(
@@ -412,7 +410,6 @@ def generer_image_gabarit(
         width=2,
     )
 
-    # Pièces de titre
     if has_pieces and df_pieces is not None and not df_pieces.empty:
         for _, row_p in df_pieces.iterrows():
             pos_p_mm = row_p["Position (mm depuis le bas)"]
@@ -453,7 +450,6 @@ def generer_image_gabarit(
                             couleur_piece_finale = (
                                 "#d9534f" if hauteur_prevue > hauteur_zone_dispo else txt_p_hex
                             )
-                            # Centré sur le milieu vertical de la pièce
                             tracer_texte_vertical(
                                 x_col, y_centre_zone, ligne, couleur_piece_finale, font,
                             )
@@ -475,7 +471,6 @@ def generer_image_gabarit(
                             "center",
                         )
 
-    # Lignes directes sur le dos
     if df_lignes is not None and not df_lignes.empty:
         for _, row_l in df_lignes.iterrows():
             mm_pos = row_l["Hauteur du titre (mm)"]
@@ -495,7 +490,6 @@ def generer_image_gabarit(
                         x_col = x_center + offset_col
 
                         _, hauteur_prevue = mesurer_taille_vertical(ligne, font)
-                        # Le centre vertical de chaque ligne coïncide avec le point de repère choisi
                         y_centre = y_repere_centre_px
                         
                         is_debordement = (
@@ -525,7 +519,6 @@ def generer_image_gabarit(
                         "center",
                     )
 
-    # Griffe client
     if griffe_texte:
         x_center = x_dos + (w_dos_px / 2)
         chars_max_par_ligne = max(int((w_dos_px - 8) / 7), 1)
@@ -568,6 +561,80 @@ def generer_image_gabarit(
 
     return img
 
+
+# ==============================================================================
+# FONCTIONS DE FORMATAGE SYSTEM 3
+# ==============================================================================
+
+def formater_texte_system3(texte):
+    """Remplace les caractères accentués français par les codes d'échappement System3."""
+    if not texte:
+        return ""
+    t = str(texte).strip().upper()
+    remplacements = {
+        "É": "\\Af", "È": "\\Ag", "Ê": "\\Ah", "Ë": "\\Aj",
+        "Ç": "\\Am", "Û": "\\Aw", "Ù": "\\Ax", "Ü": "\\Ay",
+        "Â": "\\Aq", "À": "\\Ar", "Ä": "\\As", "Î": "\\Au",
+        "Ï": "\\Av", "Ô": "\\At", "Ö": "\\Az"
+    }
+    for char, code in remplacements.items():
+        t = t.replace(char, code)
+    return t
+
+
+def generer_bloc_livre_system3(num_sequence, num_livre, type_toile, haut_maquette, larg_dos, df_lignes, griffe_texte="", griffe_pos_mm=15, sens_long=False):
+    """Génère le bloc d'instructions pour un livre individuel."""
+    code_toile = (str(type_toile)[:10]).upper().ljust(10)
+    epaisseur_str = f"{float(larg_dos):.1f}B".rjust(5)
+    offset_str = ".00".rjust(10)
+    hauteur_str = f"{float(haut_maquette):.2f}".rjust(6)
+    param_fixe = " 1585                      "
+    
+    ligne_spec = f"       1{str(num_sequence).rjust(4)}{code_toile}{epaisseur_str}{offset_str}{hauteur_str}{param_fixe}\n"
+    mode_axe = "HCC      O1"
+    lignes_texte = []
+    
+    if df_lignes is not None and not df_lignes.empty:
+        for _, row in df_lignes.iterrows():
+            pos_y = int(row["Hauteur du titre (mm)"])
+            txt_brut = str(row["Titrage"]).strip()
+            sous_lignes = [l.strip() for l in txt_brut.split("\n") if l.strip()]
+            for s_idx, sous_txt in enumerate(sous_lignes):
+                pos_calculee = pos_y - (s_idx * 15)
+                texte_formate = formater_texte_system3(sous_txt)
+                lignes_texte.append(f"           {str(pos_calculee).rjust(4)}{texte_formate}")
+                
+    if griffe_texte:
+        mots_griffe = [l.strip() for l in griffe_texte.split("\n") if l.strip()]
+        for g_idx, g_ligne in enumerate(mots_griffe):
+            pos_g = int(griffe_pos_mm) + ((len(mots_griffe) - 1 - g_idx) * 8)
+            lignes_texte.append(f"           {str(pos_g).rjust(4)}{formater_texte_system3(g_ligne)}")
+            
+    bloc = ligne_spec
+    if lignes_texte:
+        premiere_ligne = lignes_texte[0].replace("           ", mode_axe, 1)
+        bloc += premiere_ligne + "\n"
+        for l in lignes_texte[1:]:
+            bloc += l + "\n"
+    else:
+        bloc += mode_axe + "250\n"
+        
+    bloc += "//\n"
+    bloc += "." * 350 + "\n"
+    return bloc
+
+
+def assembler_fichier_system3(numero_job, liste_blocs):
+    """Assemble l'en-tête global et tous les blocs de livres."""
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    job_formate = str(numero_job)[:8].ljust(8)
+    en_tete = f"110 {job_formate}{timestamp}".ljust(114) + "\n"
+    return en_tete + "".join(liste_blocs)
+
+
+# ==============================================================================
+# INTERFACE STREAMLIT
+# ==============================================================================
 
 st.set_page_config(page_title="Titrage Système 3", layout="wide")
 st.title("📟 Module de Composition Spécifique — Titrage Système 3")
@@ -790,6 +857,68 @@ else:
                     specs_mises_a_jour,
                 ):
                     st.success(f"✅ Fiche & Composition enregistrées (Livre N°{t3_livre_num} — Train {t3_train_sel})")
+
+            # --- ZONE D'EXPORT / GENERATION FICHIER MACHINE SYSTEM 3 ---
+            st.write("---")
+            st.subheader("🖨️ Génération du fichier machine (.S3T)")
+
+            c_exp1, c_exp2 = st.columns(2)
+            with c_exp1:
+                bloc_livre_actuel = generer_bloc_livre_system3(
+                    num_sequence=1,
+                    num_livre=t3_livre_num,
+                    type_toile=t3_type_toile,
+                    haut_maquette=t3_haut_maquette,
+                    larg_dos=t3_larg_dos_utile,
+                    df_lignes=df_edite_lignes,
+                    griffe_texte=griffe_a_afficher,
+                    griffe_pos_mm=griffe_hauteur_mm,
+                    sens_long=(t3_sens_titrage == "Long"),
+                )
+                fichier_livre_unique = assembler_fichier_system3(
+                    numero_job=f"{t3_train_sel}_{t3_livre_num}",
+                    liste_blocs=[bloc_livre_actuel],
+                )
+                st.download_button(
+                    label=f"📄 Télécharger le livre N°{t3_livre_num} (.S3T)",
+                    data=fichier_livre_unique.encode("latin-1", errors="replace"),
+                    file_name=f"LIVRE_{t3_train_sel}_{t3_livre_num}.S3T",
+                    mime="text/plain",
+                    use_container_width=True,
+                )
+
+            with c_exp2:
+                if st.button(f"📦 Préparer le Train {t3_train_sel} entier", use_container_width=True):
+                    livres_du_train = lister_les_livres_du_train(t3_client, t3_train_sel)
+                    blocs_train = []
+                    for seq, n_livre in enumerate(livres_du_train, start=1):
+                        specs_l = recuperer_specs_livre(t3_client, t3_train_sel, n_livre)
+                        h_maq, l_dos, t_toile, sens_t = specs_l[12], specs_l[2] + 10, specs_l[3], specs_l[10]
+                        df_lig, _ = recuperer_titrage_enregistre(t3_client, t3_train_sel, n_livre)
+                        b = generer_bloc_livre_system3(
+                            num_sequence=seq,
+                            num_livre=n_livre,
+                            type_toile=t_toile,
+                            haut_maquette=h_maq,
+                            larg_dos=l_dos,
+                            df_lignes=df_lig,
+                            griffe_texte=griffe_a_afficher,
+                            griffe_pos_mm=griffe_hauteur_mm,
+                            sens_long=(sens_t == "Long"),
+                        )
+                        blocs_train.append(b)
+
+                    fichier_train_complet = assembler_fichier_system3(
+                        numero_job=t3_train_sel,
+                        liste_blocs=blocs_train,
+                    )
+                    st.download_button(
+                        label=f"⬇️ Télécharger le train complet ({len(livres_du_train)} livres)",
+                        data=fichier_train_complet.encode("latin-1", errors="replace"),
+                        file_name=f"TRAIN_{t3_train_sel}.S3T",
+                        mime="text/plain",
+                        use_container_width=True,
+                    )
 
         with col_gabarit_visualisation:
             st.subheader("📐 Gabarit dynamique du dos à dorer")

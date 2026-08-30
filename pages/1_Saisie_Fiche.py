@@ -2,6 +2,8 @@ import streamlit as st
 from supabase import create_client
 from datetime import datetime
 import pandas as pd
+import re
+import json
 
 def obtenir_client_supabase():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
@@ -115,6 +117,118 @@ def charger_couleurs_par_toile_supabase(type_toile_selectionne):
     except Exception:
         return liste_couleurs_generique
 
+
+# --- PARSEUR ET DÉCODEUR SYSTEM 3 (.S3T) ---
+def decoder_texte_system3(texte):
+    """Convertit les codes d'échappement System3 en texte français lisible."""
+    if not texte:
+        return ""
+    t = str(texte)
+    remplacements_inverses = {
+        "\\Af": "É", "\\Ae": "È", "\\Ag": "Ê", "\\Aj": "Ë",
+        "\\Aa": "À", "\\Ac": "Â", "\\Ad": "Ä",
+        "\\Am": "Ç",
+        "\\Au": "Î", "\\Al": "Ï",
+        "\\At": "Ô", "\\Az": "Ö",
+        "\\Ax": "Ù", "\\Aw": "Û",
+        "]": "°", "\\F1": "", "\\F5": "", "\\F6": ""
+    }
+    for code, char in remplacements_inverses.items():
+        t = t.replace(code, char)
+    t = re.sub(r"\\S\d{3}", "", t)
+    return t.strip()
+
+def parser_fichier_system3(contenu_texte):
+    """Parse l'intégralité d'un fichier .S3T et extrait les caractéristiques des pièces."""
+    lignes = [l.rstrip("\r\n") for l in contenu_texte.split("\n") if l.strip()]
+    if not lignes:
+        return []
+
+    blocs_bruts = []
+    bloc_courant = []
+    for l in lignes[1:]:
+        if l.startswith("//"):
+            if bloc_courant:
+                blocs_bruts.append(bloc_courant)
+                bloc_courant = []
+        elif not l.startswith("..."):
+            bloc_courant.append(l)
+
+    livres_importes = []
+    for bloc in blocs_bruts:
+        if not bloc:
+            continue
+        
+        ligne_entete = bloc[0]
+        try:
+            num_seq = int(ligne_entete[8:12].strip())
+        except Exception:
+            num_seq = len(livres_importes) + 1
+
+        code_client = ligne_entete[12:22].strip()
+        epaisseur_str = ligne_entete[22:27].replace("B", "").strip()
+        hauteur_str = ligne_entete[37:43].strip()
+        consigne_atelier = ligne_entete[48:].strip() if len(ligne_entete) > 48 else ""
+
+        try:
+            epaisseur = float(epaisseur_str)
+        except Exception:
+            epaisseur = 20.0
+
+        try:
+            hauteur = float(hauteur_str)
+        except Exception:
+            hauteur = 220.0
+
+        is_long = ("UCC" in bloc[1]) if len(bloc) > 1 else (epaisseur <= 20.0)
+
+        # Détection pièces de titre depuis la consigne atelier
+        cocher_pt = "P." in consigne_atelier.upper() or "PIECE" in consigne_atelier.upper()
+        couleur_pt = "Rouge"
+        if "NOIR" in consigne_atelier.upper(): couleur_pt = "Noir"
+        elif "ROUGE" in consigne_atelier.upper(): couleur_pt = "Rouge"
+        elif "BLEU" in consigne_atelier.upper() or "BF" in consigne_atelier.upper() or "BX" in consigne_atelier.upper(): couleur_pt = "Bleu"
+        elif "VERT" in consigne_atelier.upper() or "VF" in consigne_atelier.upper(): couleur_pt = "Vert"
+        elif "MARRON" in consigne_atelier.upper() or "MF" in consigne_atelier.upper(): couleur_pt = "Marron"
+
+        # Extraction des lignes de titrage
+        lignes_titrage = []
+        for l in bloc[1:]:
+            if l.startswith("UCC") or l.startswith("ULL") or l.strip().startswith("1") or l.strip().startswith("2"):
+                texte_brut = l[15:].strip() if len(l) > 15 else l[2:].strip()
+                if texte_brut and texte_brut != ".":
+                    lignes_titrage.append({
+                        "Hauteur du titre (mm)": int(hauteur * 0.5),
+                        "Titrage": decoder_texte_system3(texte_brut)
+                    })
+            elif len(l) >= 15:
+                pos_str = l[11:15].strip()
+                texte_brut = l[15:].strip()
+                if pos_str.isdigit() and texte_brut:
+                    lignes_titrage.append({
+                        "Hauteur du titre (mm)": int(pos_str),
+                        "Titrage": decoder_texte_system3(texte_brut)
+                    })
+
+        df_l = pd.DataFrame(lignes_titrage) if lignes_titrage else pd.DataFrame([{"Hauteur du titre (mm)": int(hauteur * 0.20), "Titrage": "TITRE"}])
+
+        livres_importes.append({
+            "sequence": num_seq,
+            "client_code": code_client,
+            "largeur": max(int(hauteur * 0.65), 140),
+            "hauteur": int(hauteur - 5) if hauteur > 30 else int(hauteur),
+            "hauteur_maquette": int(hauteur),
+            "epaisseur": int(epaisseur),
+            "sens_titrage": "Long" if is_long else "Classique",
+            "cocher_piece_titre": cocher_pt,
+            "couleur_pieces_toile": couleur_pt,
+            "nombre_pieces_titre": 2 if "2 P" in consigne_atelier.upper() else 1,
+            "df_lignes": df_l
+        })
+
+    return livres_importes
+
+
 # --- CONFIGURATION STREAMLIT ---
 st.set_page_config(page_title="Saisie & Suivi des Livres", layout="wide")
 st.title("📚 Saisie de Fiche — Devis + Traitements")
@@ -175,6 +289,79 @@ else:
 
     if train_charge_valide:
         with col_saisie:
+            # --- SECTION IMPORTATION DIRECTE DE FICHIER MACHINE (.S3T) ---
+            with st.expander("📥 Importer un lot complet depuis un fichier machine (.S3T)", expanded=False):
+                st.caption("Permet de générer et d'enregistrer automatiquement toutes les fiches de livres et leurs titrages à partir d'un fichier System3 existant.")
+                fichier_uploade = st.file_uploader("Sélectionner un fichier .S3T", type=["s3t", "txt"])
+                
+                if fichier_uploade is not None:
+                    contenu_str = fichier_uploade.getvalue().decode("latin-1", errors="replace")
+                    livres_importes = parser_fichier_system3(contenu_str)
+                    
+                    if livres_importes:
+                        st.success(f"🔍 {len(livres_importes)} livre(s) prêt(s) à être importé(s) dans le Train **{numero_train}**.")
+                        
+                        if st.button(f"⚡ Importer et créer les {len(livres_importes)} fiches maintenant", type="primary", use_container_width=True):
+                            supabase = obtenir_client_supabase()
+                            for l_imp in livres_importes:
+                                n_livre = l_imp["sequence"]
+                                
+                                donnees_fiche_imp = {
+                                    "nom_client": nom_client_valide.strip(),
+                                    "numero_train": numero_train.strip(),
+                                    "numero_livre": n_livre,
+                                    "nature_doc": "Périodique (Pério)",
+                                    "text_doc": "Neuf",
+                                    "option_autre": "N/A",
+                                    "repro_scanne": False,
+                                    "repro_report": False,
+                                    "hauteur": l_imp["hauteur"],
+                                    "hauteur_maquette": l_imp["hauteur_maquette"],
+                                    "largeur": l_imp["largeur"],
+                                    "epaisseur": l_imp["epaisseur"],
+                                    "ne_pas_rogner": False,
+                                    "traitement": "T1",
+                                    "type_reliure": "Bradel",
+                                    "type_couture": "Cahiers machine",
+                                    "agraphes": False,
+                                    "nombre_cahiers": 0,
+                                    "sans_titrage": False,
+                                    "titrage_sens": l_imp["sens_titrage"],
+                                    "lignes_sup": 0,
+                                    "titrage_couleur": "OR",
+                                    "police": "Elzévir",
+                                    "police_style": "Simple",
+                                    "type_toile": "Buckram",
+                                    "couleur": "Noir",
+                                    "cocher_piece_titre": l_imp["cocher_piece_titre"],
+                                    "couleur_pieces_toile": l_imp["couleur_pieces_toile"],
+                                    "marquage_pieces": "OR",
+                                    "nombre_pieces_titre": l_imp["nombre_pieces_titre"],
+                                    "supplement_1": "",
+                                    "supplement_2": "",
+                                    "supplement_3": "",
+                                    "supplement_4": ""
+                                }
+                                enregistrer_ou_mettre_a_jour_livre(donnees_fiche_imp)
+                                
+                                # Enregistrement du titrage associé
+                                json_lignes = json.dumps(l_imp["df_lignes"].to_dict(orient="records"), ensure_ascii=False)
+                                donnees_titrage_imp = {
+                                    "nom_client": nom_client_valide.strip(),
+                                    "numero_train": numero_train.strip(),
+                                    "numero_livre": n_livre,
+                                    "date_saisie": str(datetime.now().date()),
+                                    "lignes_json": json_lignes,
+                                    "pieces_json": "[]",
+                                }
+                                supabase.table("titrage_system3").upsert(
+                                    donnees_titrage_imp,
+                                    on_conflict="nom_client,numero_train,numero_livre"
+                                ).execute()
+                                
+                            st.success(f"🎉 Importation réussie ! {len(livres_importes)} livres et leurs compositions de titrage ont été enregistrés.")
+                            st.rerun()
+
             st.write("---")
             st.header(f"📋 Saisie de la fiche — Train : {numero_train}")
             
@@ -260,7 +447,6 @@ else:
                 with c_tit3: titrage_couleur = st.selectbox("Marquage", list_marq, index=list_marq.index(donnees_edition["titrage_couleur"]) if donnees_edition and donnees_edition["titrage_couleur"] in list_marq else 0)
                 with c_tit4: police = st.radio("Police", ["Elzévir", "Baton"], horizontal=True, index=0 if donnees_edition and donnees_edition["police"] == "Elzévir" else (1 if donnees_edition and donnees_edition["police"] in ["Baton", "Baskerville"] else 0))
                 
-                # SÉLECTION DU TYPE / STYLE DE POLICE (Simple / Double)
                 with c_tit5:
                     idx_style = 0 if (not donnees_edition or donnees_edition.get("police_style") != "Double") else 1
                     police_style = st.selectbox("Empreinte", ["Simple", "Double"], index=idx_style, help="Simple = trait fin standard | Double = composteur / frappe double trait")
@@ -372,6 +558,7 @@ else:
                     "repro_scanne": repro_scanne, 
                     "repro_report": repro_report,
                     "hauteur": hauteur, 
+                    "hauteur_maquette": hauteur + 5,
                     "largeur": largeur, 
                     "epaisseur": epaisseur, 
                     "ne_pas_rogner": ne_pas_rogner, 

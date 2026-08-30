@@ -307,7 +307,7 @@ else:
             # --- ZONE D'IMPORTATION DIRECTEMENT APRÈS LE CLIENT ---
             with st.expander("📥 Importer un fichier System3 (.S3T) pour ce client", expanded=False):
                 st.caption(f"Charge un lot complet de livres et préremplit leurs titrages pour **{nom_client_valide}**.")
-                fichier_uploade = st.file_uploader("Sélectionner un fichier .S3T", type=["s3t", "txt"], key=f"upload_s3t_{nom_client_valide}")
+                fichier_uploade = st.file_uploader("Sélectionner un fichier .S3T", type=["s3t", "S3T", "txt"], key=f"upload_s3t_{nom_client_valide}")
                 
                 if fichier_uploade is not None:
                     contenu_str = fichier_uploade.getvalue().decode("latin-1", errors="replace")

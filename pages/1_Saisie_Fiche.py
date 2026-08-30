@@ -1,12 +1,15 @@
-import streamlit as st
-from supabase import create_client
+import io
+import json
+import re
 from datetime import datetime
 import pandas as pd
-import re
-import json
+import streamlit as st
+from supabase import create_client
+
 
 def obtenir_client_supabase():
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
 
 def determiner_categorie_format(l, h):
     if l <= 115 and h <= 185: return "115 x 185 (In 12)"
@@ -22,6 +25,7 @@ def determiner_categorie_format(l, h):
     elif l <= 700: return "Plano A"
     else: return "Plano B"
 
+
 def lister_tous_les_clients():
     supabase = obtenir_client_supabase()
     try:
@@ -30,10 +34,12 @@ def lister_tous_les_clients():
     except Exception:
         return []
 
+
 def lister_les_trains_du_client(client):
     supabase = obtenir_client_supabase()
     reponse = supabase.table("fiches_livres").select("numero_train").eq("nom_client", client.strip()).execute()
     return sorted(list(set([row["numero_train"] for row in reponse.data])), reverse=True)
+
 
 def generer_automatiquement_numero_train(client):
     annee_courante = datetime.now().year
@@ -52,6 +58,7 @@ def generer_automatiquement_numero_train(client):
         prochain_ordre = 1
     return f"{prefixe}{prochain_ordre:03d}"
 
+
 def determiner_prochain_numero_livre(client, train):
     supabase = obtenir_client_supabase()
     reponse = supabase.table("fiches_livres").select("numero_livre").eq("nom_client", client.strip()).eq("numero_train", train.strip()).execute()
@@ -60,10 +67,12 @@ def determiner_prochain_numero_livre(client, train):
     nums = [int(row["numero_livre"]) for row in reponse.data if row["numero_livre"] is not None]
     return (max(nums) + 1) if nums else 1
 
+
 def recuperer_livre_specifique(client, train, num_livre):
     supabase = obtenir_client_supabase()
     reponse = supabase.table("fiches_livres").select("*").eq("nom_client", client.strip()).eq("numero_train", train.strip()).eq("numero_livre", num_livre).execute()
     return reponse.data[0] if reponse.data else None
+
 
 def supprimer_livre_specifique(client, train, num_livre):
     supabase = obtenir_client_supabase()
@@ -78,6 +87,22 @@ def supprimer_livre_specifique(client, train, num_livre):
         st.error(f"Erreur lors de la suppression : {e}")
         return False
 
+
+def supprimer_train_complet(client, train):
+    """Supprime l'intégralité des livres et des titrages associés à un train."""
+    supabase = obtenir_client_supabase()
+    try:
+        try:
+            supabase.table("titrage_system3").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).execute()
+        except Exception:
+            pass
+        supabase.table("fiches_livres").delete().eq("nom_client", client.strip()).eq("numero_train", train.strip()).execute()
+        return True
+    except Exception as e:
+        st.error(f"Erreur lors de la suppression du train : {e}")
+        return False
+
+
 def recuperer_livres_du_train(client, train):
     supabase = obtenir_client_supabase()
     reponse = supabase.table("fiches_livres").select("numero_livre, nature_doc, text_doc, largeur, hauteur, type_reliure, couleur, cocher_piece_titre, couleur_pieces_toile").eq("nom_client", client.strip()).eq("numero_train", train.strip()).order("numero_livre").execute()
@@ -90,9 +115,11 @@ def recuperer_livres_du_train(client, train):
         ])
     return donnees_formatees
 
+
 def enregistrer_ou_mettre_a_jour_livre(donnees):
     supabase = obtenir_client_supabase()
     supabase.table("fiches_livres").upsert(donnees).execute()
+
 
 def charger_types_toile_supabase():
     supabase = obtenir_client_supabase()
@@ -102,6 +129,7 @@ def charger_types_toile_supabase():
         return types if types else ["Buckram", "Fantasia", "Métisse"]
     except Exception:
         return ["Buckram", "Fantasia", "Métisse"]
+
 
 def charger_couleurs_par_toile_supabase(type_toile_selectionne):
     supabase = obtenir_client_supabase()
@@ -117,9 +145,8 @@ def charger_couleurs_par_toile_supabase(type_toile_selectionne):
         return liste_couleurs_generique
 
 
-# --- PARSEUR ET DÉCODEUR SYSTEM 3 (.S3T) CORRIGÉ ---
+# --- PARSEUR ET DÉCODEUR SYSTEM 3 (.S3T) ---
 def decoder_texte_system3(texte):
-    """Convertit les codes d'échappement System3 en texte français lisible."""
     if not texte:
         return ""
     t = str(texte)
@@ -137,8 +164,8 @@ def decoder_texte_system3(texte):
     t = re.sub(r"\\S\d{3}", "", t)
     return t.strip()
 
+
 def parser_fichier_system3(contenu_texte):
-    """Parse un fichier .S3T et extrait fidèlement la position Y et le texte de chaque ligne."""
     lignes = [l.rstrip("\r\n") for l in contenu_texte.split("\n") if l.strip()]
     if not lignes:
         return []
@@ -158,7 +185,6 @@ def parser_fichier_system3(contenu_texte):
         if not bloc:
             continue
         
-        # 1. Cartouche pièce (Ligne 1)
         ligne_entete = bloc[0]
         try:
             num_seq = int(ligne_entete[8:12].strip())
@@ -182,7 +208,6 @@ def parser_fichier_system3(contenu_texte):
 
         is_long = any(l.startswith("UCC") or l.startswith("ULL") for l in bloc) or (epaisseur <= 20.0)
 
-        # Détection pièces de titre
         cocher_pt = "P." in consigne_atelier.upper() or "PIECE" in consigne_atelier.upper()
         couleur_pt = "Rouge"
         if "NOIR" in consigne_atelier.upper(): couleur_pt = "Noir"
@@ -191,10 +216,8 @@ def parser_fichier_system3(contenu_texte):
         elif "VERT" in consigne_atelier.upper() or "VF" in consigne_atelier.upper(): couleur_pt = "Vert"
         elif "MARRON" in consigne_atelier.upper() or "MF" in consigne_atelier.upper(): couleur_pt = "Marron"
 
-        # 2. Extraction exacte du texte et de la hauteur Y
         lignes_titrage = []
         for l in bloc[1:]:
-            # Cas A : Titrage en long UCC / ULL
             if l.startswith("UCC") or l.startswith("ULL"):
                 texte_brut = re.sub(r"^(UCC|ULL)\d+\s+\d+[A-Z0-9]+\s+\d+", "", l).strip()
                 if texte_brut and texte_brut != ".":
@@ -209,8 +232,6 @@ def parser_fichier_system3(contenu_texte):
                         "Hauteur du titre (mm)": int(hauteur * 0.50),
                         "Titrage": decoder_texte_system3(texte_brut)
                     })
-
-            # Cas B : Titrage standard HCC
             else:
                 ligne_nettoyee = re.sub(r"^HCC\s+[A-Z0-9]{2}", "", l)
                 match = re.match(r"^\s*(\d{2,5})\s*(.*)$", ligne_nettoyee)
@@ -287,7 +308,6 @@ else:
             liste_trains_existants = lister_les_trains_du_client(nom_client_valide)
             prochain_train_auto = generer_automatiquement_numero_train(nom_client_valide)
 
-            # --- ZONE D'IMPORTATION DIRECTEMENT APRÈS LE CLIENT ---
             with st.expander("📥 Importer un fichier System3 (.S3T) pour ce client", expanded=False):
                 st.caption(f"Charge un lot complet de livres et préremplit leurs titrages pour **{nom_client_valide}**.")
                 fichier_uploade = st.file_uploader("Sélectionner un fichier .S3T", type=["s3t", "txt"], key=f"upload_s3t_{nom_client_valide}")
@@ -368,7 +388,6 @@ else:
                             st.rerun()
 
             st.write("---")
-            # Étape 2 : Sélection du train
             options_train = ["-- Choisir un train --", "[+] Créer un nouveau train automatiquement"] + liste_trains_existants
             
             index_defaut_train = 0
@@ -623,6 +642,35 @@ else:
             st.subheader(f"Train : {numero_train}")
             livres_train = recuperer_livres_du_train(nom_client_valide, numero_train)
             
+            # --- SECTION DE SUPPRESSION COMPLÈTE DU TRAIN (AVEC DOUBLE CONFIRMATION) ---
+            if livres_train and not train_selectionne.startswith("[+]"):
+                with st.expander("🗑️ Zone Danger — Supprimer ce train complet", expanded=False):
+                    st.error(f"⚠️ Vous vous apprêtez à supprimer le Train **{numero_train}** ({len(livres_train)} livre(s)) et **tous leurs titrages associés**.")
+                    cle_conf = f"conf_suppr_train_{nom_client_valide}_{numero_train}"
+                    
+                    if cle_conf not in st.session_state:
+                        st.session_state[cle_conf] = False
+
+                    if not st.session_state[cle_conf]:
+                        if st.button(f"Demander la suppression du Train {numero_train}", type="secondary", use_container_width=True):
+                            st.session_state[cle_conf] = True
+                            st.rerun()
+                    else:
+                        st.warning("🚨 **Confirmation requise :** Cette action est irréversible !")
+                        col_conf1, col_conf2 = st.columns(2)
+                        with col_conf1:
+                            if st.button("🔥 CONFIRMER LA SUPPRESSION", type="primary", use_container_width=True):
+                                if supprimer_train_complet(nom_client_valide, numero_train):
+                                    st.success(f"✅ Le Train {numero_train} a été entièrement supprimé.")
+                                    del st.session_state[cle_conf]
+                                    if "livre_selectionne" in st.session_state:
+                                        del st.session_state.livre_selectionne
+                                    st.rerun()
+                        with col_conf2:
+                            if st.button("❌ Annuler", use_container_width=True):
+                                st.session_state[cle_conf] = False
+                                st.rerun()
+
             if livres_train:
                 df_train = pd.DataFrame(livres_train, columns=["N° Livre", "Nature", "État", "Largeur", "Hauteur", "Reliure", "Couleur Toile", "Pièce Titre active"])
                 

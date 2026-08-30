@@ -138,7 +138,7 @@ def decoder_texte_system3(texte):
     return t.strip()
 
 def parser_fichier_system3(contenu_texte):
-    """Parse l'intégralité d'un fichier .S3T et extrait fidèlement les hauteurs/positions de chaque ligne."""
+    """Parse un fichier .S3T et extrait fidèlement la position Y et le texte de chaque ligne."""
     lignes = [l.rstrip("\r\n") for l in contenu_texte.split("\n") if l.strip()]
     if not lignes:
         return []
@@ -158,6 +158,7 @@ def parser_fichier_system3(contenu_texte):
         if not bloc:
             continue
         
+        # 1. Cartouche pièce (Ligne 1)
         ligne_entete = bloc[0]
         try:
             num_seq = int(ligne_entete[8:12].strip())
@@ -190,47 +191,39 @@ def parser_fichier_system3(contenu_texte):
         elif "VERT" in consigne_atelier.upper() or "VF" in consigne_atelier.upper(): couleur_pt = "Vert"
         elif "MARRON" in consigne_atelier.upper() or "MF" in consigne_atelier.upper(): couleur_pt = "Marron"
 
-        # Extraction exacte des lignes de titrage et de leur hauteur Y
+        # 2. Extraction exacte du texte et de la hauteur Y
         lignes_titrage = []
         for l in bloc[1:]:
-            # Cas A : Lignes continues UCC / ULL
+            # Cas A : Titrage en long UCC / ULL
             if l.startswith("UCC") or l.startswith("ULL"):
-                texte_brut = l[15:].strip()
+                texte_brut = re.sub(r"^(UCC|ULL)\d+\s+\d+[A-Z0-9]+\s+\d+", "", l).strip()
                 if texte_brut and texte_brut != ".":
                     lignes_titrage.append({
                         "Hauteur du titre (mm)": int(hauteur * 0.70),
                         "Titrage": decoder_texte_system3(texte_brut)
                     })
-            elif l.strip().startswith("1") or l.strip().startswith("2") or l.strip().startswith("3"):
-                match_num_ligne = re.match(r"^\s*([1-9])\s*(.*)$", l)
-                if match_num_ligne:
-                    idx_l = int(match_num_ligne.group(1))
-                    txt_b = match_num_ligne.group(2).strip()
-                    if txt_b and txt_b != ".":
-                        lignes_titrage.append({
-                            "Hauteur du titre (mm)": int(hauteur * 0.70) - ((idx_l - 1) * 15),
-                            "Titrage": decoder_texte_system3(txt_b)
-                        })
-
-            # Cas B : Lignes standard HCC avec position Y explicite
-            else:
-                if l.startswith("HCC"):
-                    segment_pos = l[10:15]
-                    texte_brut = l[15:].strip()
-                else:
-                    segment_pos = l[:15]
-                    texte_brut = l[15:].strip()
-
-                match_pos = re.search(r"(\d{2,4})", segment_pos)
-                if match_pos and texte_brut:
-                    val_y = int(match_pos.group(1))
-                    if val_y > 1000:
-                        val_y = val_y % 1000
-                    
+            elif re.match(r"^\s*[1-9]\s+", l):
+                texte_brut = re.sub(r"^\s*[1-9]\s+", "", l).strip()
+                if texte_brut and texte_brut != ".":
                     lignes_titrage.append({
-                        "Hauteur du titre (mm)": val_y,
+                        "Hauteur du titre (mm)": int(hauteur * 0.50),
                         "Titrage": decoder_texte_system3(texte_brut)
                     })
+
+            # Cas B : Titrage standard HCC
+            else:
+                ligne_nettoyee = re.sub(r"^HCC\s+[A-Z0-9]{2}", "", l)
+                match = re.match(r"^\s*(\d{2,5})\s*(.*)$", ligne_nettoyee)
+                if match:
+                    code_pos = match.group(1)
+                    texte_brut = match.group(2).strip()
+                    val_y = int(code_pos[-3:]) if len(code_pos) >= 3 else int(code_pos)
+                    
+                    if texte_brut and texte_brut != ".":
+                        lignes_titrage.append({
+                            "Hauteur du titre (mm)": val_y,
+                            "Titrage": decoder_texte_system3(texte_brut)
+                        })
 
         df_l = pd.DataFrame(lignes_titrage) if lignes_titrage else pd.DataFrame([{"Hauteur du titre (mm)": int(hauteur * 0.20), "Titrage": "TITRE"}])
 
@@ -294,7 +287,7 @@ else:
             liste_trains_existants = lister_les_trains_du_client(nom_client_valide)
             prochain_train_auto = generer_automatiquement_numero_train(nom_client_valide)
 
-            # --- ZONE D'IMPORTATION PLACÉE DIRECTEMENT APRÈS LE CLIENT ---
+            # --- ZONE D'IMPORTATION DIRECTEMENT APRÈS LE CLIENT ---
             with st.expander("📥 Importer un fichier System3 (.S3T) pour ce client", expanded=False):
                 st.caption(f"Charge un lot complet de livres et préremplit leurs titrages pour **{nom_client_valide}**.")
                 fichier_uploade = st.file_uploader("Sélectionner un fichier .S3T", type=["s3t", "txt"], key=f"upload_s3t_{nom_client_valide}")

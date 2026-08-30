@@ -12,7 +12,6 @@ from supabase import create_client
 # 1. MOTEUR DE CONVERSION & EXPORT SYSTEM 3
 # ==============================================================================
 
-# Table de correspondance canonique System3
 TABLE_ACCENTS_EXPORT = [
     ("É", "\\Af"), ("È", "\\Ae"), ("Ê", "\\Ag"), ("Ë", "\\Aj"),
     ("À", "\\Aa"), ("Â", "\\Ac"), ("Ä", "\\Ad"),
@@ -41,7 +40,6 @@ def decoder_texte_system3(texte):
     t = str(texte)
     for code, char in TABLE_ACCENTS_IMPORT:
         t = t.replace(code, char)
-    # Nettoyage des balises de polices et micro-espacements
     t = re.sub(r"\\F[0-9]", "", t)
     t = re.sub(r"\\S[0-9]{3}", "", t)
     return t.strip()
@@ -51,7 +49,6 @@ def formater_texte_system3(texte):
     """Nettoie et convertit le texte vers les codes d'échappement System3."""
     if not texte:
         return ""
-    # D'abord décoder au cas où la chaîne contienne déjà des codes d'échappement
     t = decoder_texte_system3(str(texte)).upper().strip()
     for char, code in TABLE_ACCENTS_EXPORT:
         t = t.replace(char, code)
@@ -310,7 +307,6 @@ def recuperer_titrage_enregistre(client, train, num_livre):
             df_lignes = pd.DataFrame(json.loads(rec["lignes_json"])) if rec.get("lignes_json") else None
             df_pieces = pd.DataFrame(json.loads(rec["pieces_json"])) if rec.get("pieces_json") else None
 
-            # Décodage préventif des textes s'ils étaient stockés avec des séquences \Af etc.
             if df_lignes is not None and not df_lignes.empty and "Titrage" in df_lignes.columns:
                 df_lignes["Titrage"] = df_lignes["Titrage"].apply(decoder_texte_system3)
 
@@ -324,7 +320,6 @@ def sauvegarder_titrage_sur_base(client, train, num_livre, date_saisie, df_ligne
     supabase = obtenir_client_supabase()
     num_livre_int = int(num_livre)
 
-    # Nettoyage des textes en français clair avant stockage JSON
     df_lignes_clean = df_lignes.copy() if df_lignes is not None else pd.DataFrame()
     if not df_lignes_clean.empty and "Titrage" in df_lignes_clean.columns:
         df_lignes_clean["Titrage"] = df_lignes_clean["Titrage"].apply(decoder_texte_system3)
@@ -374,8 +369,26 @@ HEX_COULEURS_MARQUAGE = {
 
 
 # ==============================================================================
-# 3. MOTEUR GRAPHIQUE (GABARIT DE VISUALISATION)
+# 3. MOTEUR GRAPHIQUE (GABARIT DE VISUALISATION AVEC GESTION POLICES UTF-8)
 # ==============================================================================
+
+def charger_police_compatible(taille_pt, bold=True):
+    """Charge une police TrueType supportant l'UTF-8 et les accents français."""
+    polices_a_tester = [
+        "DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "LiberationSans-Bold.ttf" if bold else "LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "arial.ttf",
+        "Arial.ttf"
+    ]
+    for nom_fnt in polices_a_tester:
+        try:
+            return ImageFont.truetype(nom_fnt, taille_pt)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
 
 def generer_image_gabarit(
     haut_maquette,
@@ -405,14 +418,10 @@ def generer_image_gabarit(
     taille_titre_pt = 12
     FACTEUR_DOUBLE = 2
 
-    try:
-        font = ImageFont.truetype("DejaVuSans-Bold.ttf", taille_titre_pt)
-        font_small = ImageFont.truetype("DejaVuSans.ttf", 10)
-        font_griffe = ImageFont.truetype("DejaVuSans-Bold.ttf", 11)
-    except Exception:
-        font = ImageFont.load_default()
-        font_small = ImageFont.load_default()
-        font_griffe = ImageFont.load_default()
+    # Polices TrueType chargées avec support accentué
+    font = charger_police_compatible(taille_titre_pt, bold=True)
+    font_small = charger_police_compatible(10, bold=False)
+    font_griffe = charger_police_compatible(11, bold=True)
 
     px_par_mm = h_dos_px / haut_maquette
 
